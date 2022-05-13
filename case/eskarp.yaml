@@ -1,0 +1,312 @@
+units:
+  X: 0.9 # Extrusion width
+  B: 3*X
+points:
+  zones:
+    matrix:
+      key:
+        bind: [B, B, B, B]
+      columns:
+        pinky_outer:
+          key:
+            # no bind at left
+            bind: [,,,0]
+          rows:
+            thumb:
+              skip: true
+            bottom:
+              # no bind below
+              bind: [,,0,]
+            home:
+            middle:
+            top:
+        pinky:
+          key:
+            # increase right binding to allow for spread to next col
+            bind: [,B+4+B,,]
+          rows:
+            thumb:
+              skip: true
+            bottom:
+              # no bind below
+              bind: [,,0,]
+            home:
+            middle:
+            top:
+        ring:
+          spread: 1U + 4
+          stagger: 12
+          key:
+            # no left binding as pinky is smaller
+            bind: [,,,0]
+          rows:
+            thumb:
+              bind: [,,1,]
+            bottom:
+            home:
+            middle:
+            top:
+              bind: [,B+B,,]
+        middle:
+          stagger: 5
+          rows:
+            thumb:
+              bind: [,, 6, ]
+            bottom:
+            home:
+            middle:
+            top:
+              bind: [,0,,0]
+        index:
+          stagger: -6
+          rows:
+            thumb:
+              bind: [,B+B,0,]
+            bottom:
+            home:
+            middle:
+            top:
+              bind: [,0,,B+B]
+        inner:
+          stagger: -2
+          key:
+            # increased right binding to give space for module
+            bind: [,B+3+21+0.5+3X,,]
+          rows:
+            thumb:
+              bind: [,,0,0]
+            bottom:
+            home:
+            middle:
+              bind: [B+3,,,]
+            top:
+              bind: [,0,B+B,B+B]
+      rows:
+        thumb:
+        bottom:
+        home:
+        middle:
+        top:
+          # no bind above
+          bind: [0,,,]
+    thumbfan:
+      anchor:
+        ref: matrix_inner_thumb
+        shift: [1U + 1, -0.5U]
+      columns:
+        home:
+          rotate: -20
+          origin: [-0.0U, -0.U]
+          stagger: 0
+          rows:
+            thumb:
+              shift: [0, 0.25U]
+              bind: [0,6,0.25U + 0.5,27]
+        far:
+          stagger: 0
+          rotate: -15
+          origin: [-0.5U, -0.5U]
+          rows:
+            thumb:
+              shift: [0, 0.25U]
+              bind: [0.25U,0,0.25U,35]
+      rows:
+        thumb:
+outlines:
+  exports:
+    _switch_holes:
+      - type: keys
+        side: both
+        size: 14
+        bound: false
+    _switch_clips:
+      - type: keys
+        side: both
+        size: [5, 16]
+        bound: false
+    _keys:
+      - type: keys
+        side: both
+        size: 18
+        bound: false
+    _plate:
+      - type: keys
+        side: both
+        size: 1U
+        corner: .5      
+    _plate_inner_2:
+      - type: keys
+        side: both
+        size: 1U - 2 * 2X
+        corner: .5
+    _plate_inner_3:
+      - type: keys
+        side: both
+        size: 1U - 2 * 3X
+        corner: .5
+    _rpi_pico:
+      - type: rectangle
+        anchor:
+          ref: matrix_inner_middle
+          shift: [0.5U+B+3, 0.5U + 3 - 51 - 0.5]
+        size: [21, 51]
+    _usb_cutout:
+      - type: rectangle
+        anchor:
+          ref: matrix_inner_middle
+          shift: [0.5U+B+3 + 21.0/2 - 8/2, 0.5U + 3  -1X]
+        size: [8, 5X]
+    _jst_cutout:
+      - type: rectangle
+        anchor:
+          # ref: thumbfan_far_thumb
+          # shift: [-0.5U-B - 9, 0.75U - 4X]
+          ref: matrix_inner_middle
+          shift: [0.5U+B+3 + 21 + 0.5 - 1X, 0.5U - 51 + 1 - 11]
+        size: [5X, 11]
+    _jst_socket:
+      - type: rectangle
+        anchor:
+          ref: matrix_inner_middle
+          shift: [0.5U+B+3 + 21 + 0.5 - 7, 0.5U - 51 +  1 - 11 - 0.65]
+          # ref: thumbfan_far_thumb
+          # shift: [-0.5U-B - 9 - 0.65, 0.75U - 3X - 7]
+        size: [7, 12.3]
+    _posts_template:
+      $params: [__r__]
+      top_left:
+        type: circle
+        anchor:
+          ref: matrix_pinky_outer_top
+          shift: [0.5U, -0.5U]
+        radius: __r__
+      top_right:
+        type: circle
+        anchor:
+          ref: matrix_inner_middle
+          shift: [0.5U+2, 0U]
+        radius: __r__
+      bottom_left:
+        type: circle
+        anchor:
+          ref: matrix_pinky_outer_bottom
+          shift: [0.5U, 0.5U]
+        radius: __r__
+      bottom_right:
+        type: circle
+        anchor:
+          ref: matrix_inner_thumb
+          shift: [0.5U+2, 0.5U]
+        radius: __r__
+    _posts:
+      $extends: outlines.exports._posts_template
+      $args: [2.6]
+    _screw_holes:
+      $extends: outlines.exports._posts_template
+      $args: [0.8]
+    _lid_bosses:
+      $extends: outlines.exports._posts_template
+      $args: [3.5]
+    _lid_screw_heads:
+      $extends: outlines.exports._posts_template
+      $args: [2.4]
+    case_top:
+      - type: outline
+        name: _plate
+      - type: outline
+        name: _switch_holes
+        operation: subtract
+    case_wall:
+      - type: outline
+        name: _plate
+      - type: outline
+        name: _plate_inner_3
+        operation: subtract
+    case_lip:
+      - type: outline
+        name: _plate
+      - type: outline
+        name: _plate_inner_2
+        operation: subtract
+    preview:    
+      - type: outline
+        name: _plate
+      - type: outline
+        name: _keys
+        operation: stack
+      - type: outline
+        name: _switch_holes
+        operation: stack
+      - type: outline
+        name: _switch_clips
+        operation: stack
+      - type: outline
+        name: _rpi_pico
+        operation: stack
+      - type: outline
+        name: _usb_cutout
+        operation: stack
+      - type: outline
+        name: _jst_cutout
+        operation: stack
+      - type: outline
+        name: _jst_socket
+        operation: stack
+      - type: outline
+        name: _posts
+        operation: stack
+      - type: outline
+        name: _lid_bosses
+        operation: stack
+      # wall
+      - type: outline
+        name: _plate_inner_3
+        operation: stack
+cases:
+  body:
+    # switch is 8.3 mm deep
+    # plate is 2mm
+    # case is 6.4mm
+    # lid is 1.6mm
+    # total 10mm depth, 8.4mm inner
+    - name: case_lip
+      extrude: 1.6
+    - name: case_wall
+      extrude: 6.4
+      shift: [0, 0, 1.6]
+    - name: case_top
+      extrude: 2
+      shift: [0, 0, 6 + 1.6]
+    - name: _switch_clips
+      extrude: 1
+      shift: [0, 0, 6 + 1.6]
+      operation: subtract
+    - name: _posts
+      extrude: 6 - 1.6
+      shift: [0, 0, 3.2]
+    - name: _screw_holes
+      extrude: 6 - 1.6
+      shift: [0, 0, 3.2]
+      operation: subtract
+    - name: _usb_cutout
+      extrude: 3.6
+      shift: [0, 0, 3.2]
+      operation: subtract
+    - name: _jst_cutout
+      extrude: 5.2
+      shift: [0, 0, 6+1.6 - 5.2]
+      operation: subtract
+  lid:
+    - name: _plate_inner_2
+      extrude: 1.6
+    - name: _lid_bosses
+      extrude: 1.6
+      shift: [0, 0, 1.6]
+    - name: _screw_holes
+      extrude: 1.8
+      shift: [0, 0, 1.5]
+      operation: subtract
+    - name: _lid_screw_heads
+      extrude: 1.8
+      shift: [0, 0, -0.1]
+      operation: subtract
