@@ -1,0 +1,33 @@
+#!/usr/bin/python
+
+import mistune
+import sys
+
+sys.stdout.write('''
+<html>
+<head>
+<style>
+body { font-family: sans; }
+table {
+  border: 1px solid black;
+  table-layout: fixed;
+}
+
+th {
+ }
+td {
+  border: 1px solid black;
+  width: 3em;
+  overflow: hidden;
+}
+</style>
+</head>
+<body>
+''')
+
+sys.stdout.write(mistune.html(sys.stdin.read()))
+
+sys.stdout.write('''
+</body>
+</html>
+''')
