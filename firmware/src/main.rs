@@ -45,6 +45,7 @@ mod app {
     const fn make_keymap() -> keyberon::layout::Layers<CustomKey> {
         // aliases to keep keymap readable
         const K_NUBS: Action = k(NonUsBslash);
+        const K_BKTK: Action = k(Grave);
         const K_ENT: Action = k(Enter);
         const K_SPC: Action = k(Space);
         const K_BSP: Action = k(BSpace);
@@ -92,29 +93,41 @@ mod app {
         const CUT: Action = m(&[LCtrl, X]);
         const COPY: Action = m(&[LCtrl, C]);
         const PASTE: Action = m(&[LCtrl, V]);
+        const UNDO: Action = m(&[LCtrl, Z]);
+        const NK: Action = NoOp;
 
         #[rustfmt::skip]
         const KEYMAP: keyberon::layout::Layers<CustomKey> = &[
         &[
-            &[k(Grave),  k(Kb1),  k(Kb2),   k(Kb3),  k(Kb4),  k(Kb5), NoOp,  /*|*/ NoOp,  k(Kb6), k(Kb7),  k(Kb8),   k(Kb9),   k(Kb0),    k(Minus), ],
-            &[k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NoOp,  /*|*/ NoOp,  k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
-            &[k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NoOp,  /*|*/ NoOp,  k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
-            &[K_NUBS,    k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
-            &[NoOp,      NoOp,    k(LCtrl), k(LGui), k(LAlt), L_1,    K_SPC, /*|*/ K_SPC, L_1,    k(RAlt), K_APP,    k(RCtrl), NoOp,      NoOp,     ],
-         ],
-        &[
-            &[K_ESC,     k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NoOp,  /*|*/ NoOp,  k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    k(F11),   ],
-            &[L_2,       CUT,     K_PLUS,   K_MINUS, K_LBRK,  K_RBRK, NoOp,  /*|*/ NoOp,  K_PGUP, k(Home), k(Up),    k(End),   NoOp,      k(F12),   ],
-            &[NoOp,      COPY,    K_MUL,    K_DIV,   K_LBRA,  K_RBRA, NoOp,  /*|*/ NoOp,  K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
-            &[NoOp,      PASTE,   K_LT,     K_GT,    K_LPAR,  K_RPAR, NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    d(0),   NoOp,  /*|*/ NoOp,  d(0),   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            &[K_ESC,     k(Kb1),  k(Kb2),   k(Kb3),  k(Kb4),  k(Kb5), NK,    /*|*/ NK,    k(Kb6), k(Kb7),  k(Kb8),   k(Kb9),   k(Kb0),    k(Minus), ],
+            &[k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NK,    /*|*/ NK,    k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
+            &[k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NK,    /*|*/ NK,    k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
+            &[k(LCtrl),  k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
+            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), L_1,    K_SPC, /*|*/ K_SPC, L_2,    k(RAlt), L_1,      k(RCtrl), NK,        NK,       ],
         ],
+        // Nav / Select
         &[
-            &[NoOp,      K_PSCR,  K_SLCK,   K_PAUS,  NoOp,    NoOp,   NoOp,  /*|*/ NoOp,  NoOp,  k(Kp7),   k(Kp8),   k(Kp9),   K_DIV,     NoOp,     ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VUP,  NoOp,  /*|*/ NoOp,  NoOp,  k(Kp4),   k(Kp5),   k(Kp6),   K_MUL,     NoOp,     ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VDN,  NoOp,  /*|*/ NoOp,  NoOp,  k(Kp1),   k(Kp2),   k(Kp3),   K_MINUS,   NoOp,     ],
-            &[K_RSTL,    NoOp,    NoOp,     NoOp,    NoOp,    K_MUTE, NoOp,  /*|*/ K_BSP, NoOp,  NoOp,     k(Kp0),   NoOp,     K_PLUS,    K_RSTR,   ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    d(0),   K_SPC, /*|*/ K_ENT, d(0),  NoOp,     NoOp,     NoOp,     NoOp,      NoOp,     ],
+            &[NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    k(F11),   ],
+            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   K_APP,     k(F12),   ],
+            &[k(LShift), NoOp,    CUT,      COPY,    PASTE,   UNDO,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
+            &[k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
+            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  d(0),   k(RAlt), L_2,      k(RCtrl), NK,        NK,       ],
+        ],
+        // Symbols / Keypad 
+        &[
+            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
+            &[NoOp,      NoOp,    K_PLUS,   K_MINUS, K_LBRK,  K_RBRK, NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_MUL,     NoOp,     ],
+            &[k(LShift), NoOp,    K_MUL,    K_DIV,   K_LBRA,  K_RBRA, NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_MINUS,   NoOp,     ],
+            &[k(LCtrl),  NoOp,    K_LT,     K_GT,    K_LPAR,  K_RPAR, NoOp,  /*|*/ K_BSP, NoOp,   NoOp,    k(Kb0),   NoOp,     K_PLUS,    NoOp,     ],
+            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   K_SPC, /*|*/ K_ENT, d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
+        ],
+        // System
+        &[
+            &[K_RSTL,    K_PSCR,  K_SLCK,   K_PAUS,  NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_RSTR,   ],
+            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VUP,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VDN,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_MUTE, NoOp,  /*|*/ NoOp,  NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            &[NK,        NK,      NoOp,     NoOp,    NoOp,    d(0),   NoOp,  /*|*/ NoOp,  d(0),   NoOp,    d(0),     NoOp,     NK,        NK,       ],
         ],
         ];
         KEYMAP
