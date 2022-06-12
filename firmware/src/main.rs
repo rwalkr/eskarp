@@ -23,7 +23,7 @@ mod app {
     use keyberon::hid;
     use keyberon::key_code::KeyCode::*;
     use keyberon::layout::{CustomEvent, Event};
-    use keyberon::matrix::{Matrix, PressedKeys};
+    use keyberon::matrix::{Matrix};
     use nb::block;
     use rp_pico::hal;
     use rp_pico::hal::gpio::dynpin::DynPin;
@@ -40,9 +40,10 @@ mod app {
         Reset(either::Either<(), ()>),
     }
     type Action = keyberon::action::Action<CustomKey>;
-    type Layout = keyberon::layout::Layout<CustomKey>;
+    type Layout = keyberon::layout::Layout<14, 5, 4, CustomKey>;
+    type Layers = keyberon::layout::Layers<14, 5, 4, CustomKey>;
 
-    const fn make_keymap() -> keyberon::layout::Layers<CustomKey> {
+    const fn make_keymap() -> Layers {
         // aliases to keep keymap readable
         const K_NUBS: Action = k(NonUsBslash);
         const K_BKTK: Action = k(Grave);
@@ -97,42 +98,42 @@ mod app {
         const NK: Action = NoOp;
 
         #[rustfmt::skip]
-        const KEYMAP: keyberon::layout::Layers<CustomKey> = &[
-        &[
-            &[K_ESC,     k(Kb1),  k(Kb2),   k(Kb3),  k(Kb4),  k(Kb5), NK,    /*|*/ NK,    k(Kb6), k(Kb7),  k(Kb8),   k(Kb9),   k(Kb0),    k(Minus), ],
-            &[k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NK,    /*|*/ NK,    k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
-            &[k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NK,    /*|*/ NK,    k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
-            &[k(LCtrl),  k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
-            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), L_1,    K_SPC, /*|*/ K_SPC, L_2,    k(RAlt), L_1,      k(RCtrl), NK,        NK,       ],
+        const KEYMAP: Layers = [
+        [
+            [K_ESC,     k(Kb1),  k(Kb2),   k(Kb3),  k(Kb4),  k(Kb5), NK,    /*|*/ NK,    k(Kb6), k(Kb7),  k(Kb8),   k(Kb9),   k(Kb0),    k(Minus), ],
+            [k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NK,    /*|*/ NK,    k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
+            [k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NK,    /*|*/ NK,    k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
+            [k(LCtrl),  k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
+            [NK,        NK,      NoOp,     k(LGui), k(LAlt), L_1,    K_SPC, /*|*/ K_SPC, L_2,    k(RAlt), L_1,      k(RCtrl), NK,        NK,       ],
         ],
         // Nav / Select
-        &[
-            &[NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    k(F11),   ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   K_APP,     k(F12),   ],
-            &[k(LShift), NoOp,    CUT,      COPY,    PASTE,   UNDO,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
-            &[k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
-            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  d(0),   k(RAlt), L_2,      k(RCtrl), NK,        NK,       ],
+        [
+            [NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    k(F11),   ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   K_APP,     k(F12),   ],
+            [k(LShift), NoOp,    CUT,      COPY,    PASTE,   UNDO,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
+            [k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
+            [NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  d(0),   k(RAlt), L_2,      k(RCtrl), NK,        NK,       ],
         ],
         // Symbols / Keypad 
-        &[
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
-            &[NoOp,      NoOp,    K_PLUS,   K_MINUS, K_LBRK,  K_RBRK, NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_MUL,     NoOp,     ],
-            &[k(LShift), NoOp,    K_MUL,    K_DIV,   K_LBRA,  K_RBRA, NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_MINUS,   NoOp,     ],
-            &[k(LCtrl),  NoOp,    K_LT,     K_GT,    K_LPAR,  K_RPAR, NoOp,  /*|*/ K_BSP, NoOp,   NoOp,    k(Kb0),   NoOp,     K_PLUS,    NoOp,     ],
-            &[NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   K_SPC, /*|*/ K_ENT, d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
+        [
+            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
+            [NoOp,      NoOp,    K_PLUS,   K_MINUS, K_LBRK,  K_RBRK, NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_MUL,     NoOp,     ],
+            [k(LShift), NoOp,    K_MUL,    K_DIV,   K_LBRA,  K_RBRA, NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_MINUS,   NoOp,     ],
+            [k(LCtrl),  NoOp,    K_LT,     K_GT,    K_LPAR,  K_RPAR, NoOp,  /*|*/ K_BSP, NoOp,   NoOp,    k(Kb0),   NoOp,     K_PLUS,    NoOp,     ],
+            [NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   K_SPC, /*|*/ K_ENT, d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
         ],
         // System
-        &[
-            &[K_RSTL,    K_PSCR,  K_SLCK,   K_PAUS,  NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_RSTR,   ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VUP,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VDN,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            &[NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_MUTE, NoOp,  /*|*/ NoOp,  NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            &[NK,        NK,      NoOp,     NoOp,    NoOp,    d(0),   NoOp,  /*|*/ NoOp,  d(0),   NoOp,    d(0),     NoOp,     NK,        NK,       ],
+        [
+            [K_RSTL,    K_PSCR,  K_SLCK,   K_PAUS,  NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_RSTR,   ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VUP,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VDN,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_MUTE, NoOp,  /*|*/ NoOp,  NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
+            [NK,        NK,      NoOp,     NoOp,    NoOp,    d(0),   NoOp,  /*|*/ NoOp,  d(0),   NoOp,    d(0),     NoOp,     NK,        NK,       ],
         ],
         ];
         KEYMAP
     }
-    pub static LAYERS: keyberon::layout::Layers<CustomKey> = make_keymap();
+    pub static LAYERS: Layers = make_keymap();
 
     const KBDSIZE_COLS: usize = 7;
     const KBDSIZE_ROWS: usize = 5;
@@ -140,7 +141,7 @@ mod app {
     pub struct KeyboardState {
         is_left: bool,
         matrix: Matrix<DynPin, DynPin, KBDSIZE_COLS, KBDSIZE_ROWS>,
-        debouncer: Debouncer<PressedKeys<KBDSIZE_COLS, KBDSIZE_ROWS>>,
+        debouncer: Debouncer<[[bool; KBDSIZE_COLS]; KBDSIZE_ROWS]>,
     }
 
     impl KeyboardState {
@@ -160,7 +161,7 @@ mod app {
             KeyboardState {
                 is_left,
                 matrix: Matrix::new(cols, rows).unwrap(),
-                debouncer: Debouncer::new(PressedKeys::default(), PressedKeys::default(), 5),
+                debouncer: Debouncer::new([[false; KBDSIZE_COLS]; KBDSIZE_ROWS], [[false; KBDSIZE_COLS]; KBDSIZE_ROWS], 5),
             }
         }
     }
@@ -271,7 +272,7 @@ mod app {
         let kbd_state = KeyboardState::new(is_left, rows, cols);
 
         let shared = Shared {
-            layout: Layout::new(LAYERS),
+            layout: Layout::new(&LAYERS),
             media_queue: Queue::new(),
             usb_dev,
             usb_class,
