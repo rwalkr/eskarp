@@ -18,12 +18,12 @@ mod app {
     use embedded_time::duration::units::Extensions;
     use heapless::spsc::Queue;
     use keyberon::action::Action::*;
-    use keyberon::action::{HoldTapConfig, d, k, l, m};
+    use keyberon::action::{d, k, l, m, HoldTapConfig};
     use keyberon::debounce::Debouncer;
     use keyberon::hid;
     use keyberon::key_code::KeyCode::*;
     use keyberon::layout::{CustomEvent, Event};
-    use keyberon::matrix::{Matrix};
+    use keyberon::matrix::Matrix;
     use nb::block;
     use rp_pico::hal;
     use rp_pico::hal::gpio::dynpin::DynPin;
@@ -162,7 +162,11 @@ mod app {
 
             KeyboardState {
                 matrix: Matrix::new(cols, rows).unwrap(),
-                debouncer: Debouncer::new([[false; KBDSIZE_COLS]; KBDSIZE_ROWS], [[false; KBDSIZE_COLS]; KBDSIZE_ROWS], 5),
+                debouncer: Debouncer::new(
+                    [[false; KBDSIZE_COLS]; KBDSIZE_ROWS],
+                    [[false; KBDSIZE_COLS]; KBDSIZE_ROWS],
+                    5,
+                ),
             }
         }
     }
@@ -236,7 +240,7 @@ mod app {
             // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
             pins.gpio0.into_mode::<hal::gpio::FunctionUart>(),
             // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-            pins.gpio1.into_mode::<hal::gpio::FunctionUart>()
+            pins.gpio1.into_mode::<hal::gpio::FunctionUart>(),
         );
 
         // Make a UART on the given pins
@@ -311,30 +315,27 @@ mod app {
         let transform = c.local.transform;
         let kbd_state = c.local.kbd_state;
         let mut uart = c.shared.uart;
-        uart
-            .lock(|uart| {
-                let matrix_state = kbd_state.matrix.get().unwrap();
-                let events = kbd_state.debouncer.events(matrix_state);
-                for event in events {
-                    let event = transform(event);
-                    for &b in &ser(event) {
-                        block!(uart.write(b)).unwrap();
-                    }
-                    handle_event::spawn(event).unwrap();
+        uart.lock(|uart| {
+            let matrix_state = kbd_state.matrix.get().unwrap();
+            let events = kbd_state.debouncer.events(matrix_state);
+            for event in events {
+                let event = transform(event);
+                for &b in &ser(event) {
+                    block!(uart.write(b)).unwrap();
                 }
-            });
+                handle_event::spawn(event).unwrap();
+            }
+        });
         tick_keyberon::spawn().unwrap();
     }
 
     #[task(binds = UART0_IRQ, shared = [uart, rxbuf])]
     fn uart_rx(c: uart_rx::Context) {
-        (c.shared.uart,
-         c.shared.rxbuf
-        ).lock(|uart, rxbuf| {
+        (c.shared.uart, c.shared.rxbuf).lock(|uart, rxbuf| {
             while let Ok(b) = uart.read() {
                 rxbuf.rotate_left(1);
                 rxbuf[3] = b;
-    
+
                 if rxbuf[3] == b'\n' {
                     if let Ok(event) = de(&rxbuf[..]) {
                         handle_event::spawn(event).unwrap();
@@ -363,9 +364,7 @@ mod app {
                 let tick = layout.tick();
                 match tick {
                     // reset if reset key pressed 5 times
-                    CustomEvent::Release(CustomKey::Reset(k))
-                        if k.is_left() == is_left =>
-                    {
+                    CustomEvent::Release(CustomKey::Reset(k)) if k.is_left() == is_left => {
                         *rset_count += 1;
                         if *rset_count >= 5 {
                             *rset_count = 0;

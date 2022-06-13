@@ -109,7 +109,11 @@ impl HidDevice for KbState {
         9 as u16
     }
 
-    fn get_report(&mut self, report_type: ReportType, _report_id: u8) -> Result<&[u8], keyberon::hid::Error> {
+    fn get_report(
+        &mut self,
+        report_type: ReportType,
+        _report_id: u8,
+    ) -> Result<&[u8], keyberon::hid::Error> {
         match report_type {
             ReportType::Input => Ok(self.kb_report.as_bytes()),
             _ => Err(keyberon::hid::Error),
