@@ -13,6 +13,7 @@ nb = "1.0.0"
 panic-halt = "0.2"
 usb-device = "0.2.0"
 heapless = "0.7"
+rp-pico = "0.3"
 
 [dependencies.cortex-m-rt]
 features = ["device"]
@@ -24,9 +25,6 @@ default-features = false
 
 [dependencies.keyberon]
 git = "https://github.com/TeXitoi/keyberon"
-
-[dependencies.rp-pico]
-version = "0.2.0"
 
 [profile]
 [profile.release]

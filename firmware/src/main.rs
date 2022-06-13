@@ -33,7 +33,11 @@ mod app {
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 
-    type UartDevice = hal::uart::UartPeripheral<hal::uart::Enabled, hal::pac::UART0>;
+    type UartPins = (
+        hal::gpio::Pin<hal::gpio::pin::bank0::Gpio0, hal::gpio::Function<hal::gpio::Uart>>,
+        hal::gpio::Pin<hal::gpio::pin::bank0::Gpio1, hal::gpio::Function<hal::gpio::Uart>>,
+    );
+    type UartDevice = hal::uart::UartPeripheral<hal::uart::Enabled, hal::pac::UART0, UartPins>;
 
     pub enum CustomKey {
         Media(MediaKey),
@@ -139,14 +143,12 @@ mod app {
     const KBDSIZE_ROWS: usize = 5;
 
     pub struct KeyboardState {
-        is_left: bool,
         matrix: Matrix<DynPin, DynPin, KBDSIZE_COLS, KBDSIZE_ROWS>,
         debouncer: Debouncer<[[bool; KBDSIZE_COLS]; KBDSIZE_ROWS]>,
     }
 
     impl KeyboardState {
         pub fn new(
-            is_left: bool,
             mut rows: [DynPin; KBDSIZE_ROWS],
             mut cols: [DynPin; KBDSIZE_COLS],
         ) -> KeyboardState {
@@ -159,7 +161,6 @@ mod app {
             }
 
             KeyboardState {
-                is_left,
                 matrix: Matrix::new(cols, rows).unwrap(),
                 debouncer: Debouncer::new([[false; KBDSIZE_COLS]; KBDSIZE_ROWS], [[false; KBDSIZE_COLS]; KBDSIZE_ROWS], 5),
             }
@@ -181,8 +182,8 @@ mod app {
     #[local]
     struct Local {
         kbd_state: KeyboardState,
+        is_left: bool,
         transform: fn(Event) -> Event,
-        timer: hal::Timer,
         alarm: hal::timer::Alarm0,
     }
 
@@ -229,21 +230,23 @@ mod app {
         let mut timer = hal::Timer::new(c.device.TIMER, &mut resets);
         let mut alarm = timer.alarm_0().unwrap();
         let _ = alarm.schedule(SCAN_TIME_US.microseconds());
-        alarm.enable_interrupt(&mut timer);
+        alarm.enable_interrupt();
 
-        // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
-        pins.gpio0.into_mode::<hal::gpio::FunctionUart>();
-        // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-        pins.gpio1.into_mode::<hal::gpio::FunctionUart>();
+        let uart_pins = (
+            // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
+            pins.gpio0.into_mode::<hal::gpio::FunctionUart>(),
+            // UART RX (characters received by RP2040) on pin 2 (GPIO1)
+            pins.gpio1.into_mode::<hal::gpio::FunctionUart>()
+        );
 
         // Make a UART on the given pins
-        let uart = hal::uart::UartPeripheral::new(c.device.UART0, &mut resets)
+        let mut uart = hal::uart::UartPeripheral::new(c.device.UART0, uart_pins, &mut resets)
             .enable(
                 hal::uart::common_configs::_38400_8_N_1,
                 clocks.peripheral_clock.into(),
             )
             .unwrap();
-        // TODO: enable UART IRQ when interrupt support is enabled in hal
+        uart.enable_rx_interrupt();
 
         let kbd_side_pin = pins.gpio28.into_pull_up_input();
         let is_left = kbd_side_pin.is_low().unwrap();
@@ -269,7 +272,7 @@ mod app {
             pins.gpio7.into(),
             pins.gpio8.into(),
         ];
-        let kbd_state = KeyboardState::new(is_left, rows, cols);
+        let kbd_state = KeyboardState::new(rows, cols);
 
         let shared = Shared {
             layout: Layout::new(&LAYERS),
@@ -281,8 +284,8 @@ mod app {
         };
         let local = Local {
             kbd_state,
+            is_left,
             transform,
-            timer,
             alarm,
         };
         (shared, local, init::Monotonics())
@@ -298,32 +301,70 @@ mod app {
     }
 
     #[task(binds = TIMER_IRQ_0,
-           local = [kbd_state, transform, timer, alarm, rset_count: u32 = 0],
-           shared = [layout, media_queue, uart, rxbuf])]
+           local = [kbd_state, transform, alarm],
+           shared = [uart])]
     fn tick(c: tick::Context) {
-        let timer = c.local.timer;
         let alarm = c.local.alarm;
-        alarm.clear_interrupt(timer);
+        alarm.clear_interrupt();
         let _ = alarm.schedule(SCAN_TIME_US.microseconds());
 
-        let kbd_state = c.local.kbd_state;
         let transform = c.local.transform;
-        let rset_count = c.local.rset_count;
-        (
-            c.shared.uart,
-            c.shared.rxbuf,
-            c.shared.layout,
-            c.shared.media_queue,
-        )
-            .lock(|uart, rxbuf, layout, media_queue| {
-                uart_poll(layout, uart, rxbuf);
+        let kbd_state = c.local.kbd_state;
+        let mut uart = c.shared.uart;
+        uart
+            .lock(|uart| {
+                let matrix_state = kbd_state.matrix.get().unwrap();
+                let events = kbd_state.debouncer.events(matrix_state);
+                for event in events {
+                    let event = transform(event);
+                    for &b in &ser(event) {
+                        block!(uart.write(b)).unwrap();
+                    }
+                    handle_event::spawn(event).unwrap();
+                }
+            });
+        tick_keyberon::spawn().unwrap();
+    }
 
-                handle_events(kbd_state, transform, layout, uart);
+    #[task(binds = UART0_IRQ, shared = [uart, rxbuf])]
+    fn uart_rx(c: uart_rx::Context) {
+        (c.shared.uart,
+         c.shared.rxbuf
+        ).lock(|uart, rxbuf| {
+            while let Ok(b) = uart.read() {
+                rxbuf.rotate_left(1);
+                rxbuf[3] = b;
+    
+                if rxbuf[3] == b'\n' {
+                    if let Ok(event) = de(&rxbuf[..]) {
+                        handle_event::spawn(event).unwrap();
+                    }
+                }
+            }
+        });
+    }
+
+    #[task(capacity = 8, shared = [layout])]
+    fn handle_event(mut c: handle_event::Context, event: Event) {
+        c.shared.layout.lock(|layout| layout.event(event));
+    }
+
+    #[task(shared = [layout, media_queue, usb_dev, usb_class],
+           local = [is_left, rset_count: u32 = 0])]
+    fn tick_keyberon(c: tick_keyberon::Context) {
+        let usb_dev = c.shared.usb_dev;
+        let usb_class = c.shared.usb_class;
+        let layout = c.shared.layout;
+        let media_queue = c.shared.media_queue;
+        let is_left = *c.local.is_left;
+        let rset_count = c.local.rset_count;
+        (usb_dev, usb_class, layout, media_queue).lock(
+            |usb_dev, usb_class, layout, media_queue| {
                 let tick = layout.tick();
                 match tick {
                     // reset if reset key pressed 5 times
                     CustomEvent::Release(CustomKey::Reset(k))
-                        if k.is_left() == kbd_state.is_left =>
+                        if k.is_left() == is_left =>
                     {
                         *rset_count += 1;
                         if *rset_count >= 5 {
@@ -339,48 +380,7 @@ mod app {
                     }
                     _ => {}
                 }
-            });
-        tick_keyberon::spawn().unwrap();
-    }
 
-    fn uart_poll(layout: &mut Layout, uart: &mut UartDevice, rxbuf: &mut [u8; 4]) {
-        while let Ok(b) = uart.read() {
-            rxbuf.rotate_left(1);
-            rxbuf[3] = b;
-
-            if rxbuf[3] == b'\n' {
-                if let Ok(event) = de(&rxbuf[..]) {
-                    layout.event(event);
-                }
-            }
-        }
-    }
-
-    fn handle_events(
-        kbd_state: &mut KeyboardState,
-        transform: &fn(Event) -> Event,
-        layout: &mut Layout,
-        uart: &mut UartDevice,
-    ) {
-        let matrix_state = kbd_state.matrix.get().unwrap();
-        let events = kbd_state.debouncer.events(matrix_state);
-        for event in events {
-            let event = transform(event);
-            layout.event(event);
-            for &b in &ser(event) {
-                block!(uart.write(b)).unwrap();
-            }
-        }
-    }
-
-    #[task(shared = [layout, media_queue, usb_dev, usb_class])]
-    fn tick_keyberon(c: tick_keyberon::Context) {
-        let usb_dev = c.shared.usb_dev;
-        let usb_class = c.shared.usb_class;
-        let layout = c.shared.layout;
-        let media_queue = c.shared.media_queue;
-        (usb_dev, usb_class, layout, media_queue).lock(
-            |usb_dev, usb_class, layout, media_queue| {
                 if usb_dev.state() != usb_device::device::UsbDeviceState::Configured {
                     return;
                 }
