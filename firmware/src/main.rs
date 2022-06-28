@@ -1,3 +1,4 @@
+// Keyboard firmware
 #![no_main]
 #![no_std]
 
@@ -30,6 +31,9 @@ mod app {
     use rp_pico::hal::gpio::dynpin::DynPin;
     use usb_device::bus::UsbBusAllocator;
     use rp_pico::hal::timer::Alarm;
+    use rp_pico::hal::pio::PIOExt;
+    use ws2812_pio::Ws2812Direct;
+    use smart_leds::{SmartLedsWrite, RGB8};
 
     type UsbClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
@@ -40,6 +44,12 @@ mod app {
         hal::gpio::Pin<hal::gpio::pin::bank0::Gpio1, hal::gpio::Function<hal::gpio::Uart>>,
     );
     type UartDevice = hal::uart::UartPeripheral<hal::uart::Enabled, hal::pac::UART0, UartPins>;
+
+    type StatusLed = Ws2812Direct<hal::pac::PIO0, hal::pio::SM0, hal::gpio::pin::bank0::Gpio26>;
+    enum StatusVal {
+        Layer(usize),
+        Bootloader
+    }
 
     pub enum CustomKey {
         Media(MediaKey),
@@ -189,6 +199,7 @@ mod app {
     struct Local {
         kbd_state: KeyboardState,
         is_left: bool,
+        status_led: StatusLed,
         transform: fn(Event) -> Event,
         alarm: hal::timer::Alarm0,
     }
@@ -280,6 +291,15 @@ mod app {
         ];
         let kbd_state = KeyboardState::new(rows, cols);
 
+        let (mut pio, sm0, _, _, _) = c.device.PIO0.split(&mut resets);
+        let mut status_led = Ws2812Direct::new(
+            pins.gpio26.into_mode(),
+            &mut pio,
+            sm0,
+            clocks.peripheral_clock.freq(),
+        );
+        update_status_led(&mut status_led, StatusVal::Layer(0), 0);
+
         let shared = Shared {
             layout: Layout::new(&LAYERS),
             media_queue: Queue::new(),
@@ -291,6 +311,7 @@ mod app {
         let local = Local {
             kbd_state,
             is_left,
+            status_led,
             transform,
             alarm,
         };
@@ -353,13 +374,15 @@ mod app {
     }
 
     #[task(shared = [layout, media_queue, usb_dev, usb_class],
-           local = [is_left, rset_count: u32 = 0])]
+           local = [is_left, status_led, cur_layer: usize = 0, rset_count: u32 = 0])]
     fn tick_keyberon(c: tick_keyberon::Context) {
         let usb_dev = c.shared.usb_dev;
         let usb_class = c.shared.usb_class;
         let layout = c.shared.layout;
         let media_queue = c.shared.media_queue;
         let is_left = *c.local.is_left;
+        let status_led = c.local.status_led;
+        let cur_layer = c.local.cur_layer;
         let rset_count = c.local.rset_count;
         (usb_dev, usb_class, layout, media_queue).lock(
             |usb_dev, usb_class, layout, media_queue| {
@@ -370,7 +393,10 @@ mod app {
                         *rset_count += 1;
                         if *rset_count >= 5 {
                             *rset_count = 0;
+                            update_status_led(status_led, StatusVal::Bootloader, 0);
                             do_reset();
+                        } else {
+                            update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
                         }
                     }
                     CustomEvent::Press(CustomKey::Media(k)) => {
@@ -380,6 +406,15 @@ mod app {
                         media_queue.enqueue(MediaKeyHidReport::default()).ok();
                     }
                     _ => {}
+
+                }
+
+                if layout.current_layer() != *cur_layer {
+                    *cur_layer = layout.current_layer();
+                    if *cur_layer != 3 {
+                        *rset_count = 0;
+                    }
+                    update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
                 }
 
                 if usb_dev.state() != usb_device::device::UsbDeviceState::Configured {
@@ -430,6 +465,17 @@ mod app {
             Event::Press(i, j) => [b'P', i, j, b'\n'],
             Event::Release(i, j) => [b'R', i, j, b'\n'],
         }
+    }
+
+    fn update_status_led(status_led: &mut StatusLed, status: StatusVal, rset_count: u32) {
+        let led_color: RGB8 = match status {
+            StatusVal::Layer(1) => (0, 0, 8),
+            StatusVal::Layer(2) => (0, 8, 0),
+            StatusVal::Layer(3) => (8 + 8 * rset_count as u8, 0, 0),
+            StatusVal::Bootloader => (8, 4, 0),
+            _ => (0, 0, 0),
+        }.into();
+        status_led.write([led_color].iter().copied()).unwrap();
     }
 
     fn do_reset() {
