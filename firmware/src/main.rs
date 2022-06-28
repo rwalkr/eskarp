@@ -26,8 +26,10 @@ mod app {
     use keyberon::matrix::Matrix;
     use nb::block;
     use rp_pico::hal;
+    use rp_pico::hal::prelude::*;
     use rp_pico::hal::gpio::dynpin::DynPin;
     use usb_device::bus::UsbBusAllocator;
+    use rp_pico::hal::timer::Alarm;
 
     type UsbClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
@@ -247,7 +249,7 @@ mod app {
         let mut uart = hal::uart::UartPeripheral::new(c.device.UART0, uart_pins, &mut resets)
             .enable(
                 hal::uart::common_configs::_38400_8_N_1,
-                clocks.peripheral_clock.into(),
+                clocks.peripheral_clock.freq(),
             )
             .unwrap();
         uart.enable_rx_interrupt();
