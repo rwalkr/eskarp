@@ -129,7 +129,7 @@ outlines:
         side: both
         size: 18
         bound: false
-    _plate:
+    plate:
       - type: keys
         side: both
         size: 1U
@@ -212,25 +212,25 @@ outlines:
       $args: [2.4]
     case_top:
       - type: outline
-        name: _plate
+        name: plate
       - type: outline
         name: _switch_holes
         operation: subtract
     case_wall:
       - type: outline
-        name: _plate
+        name: plate
       - type: outline
         name: _plate_inner_3
         operation: subtract
     case_lip:
       - type: outline
-        name: _plate
+        name: plate
       - type: outline
         name: _plate_inner_2
         operation: subtract
     preview:    
       - type: outline
-        name: _plate
+        name: plate
       - type: outline
         name: _keys
         operation: stack

@@ -1,4 +1,4 @@
-all: stl/body.stl stl/lid.stl svg/preview.svg svg/case_top.svg
+all: stl/body.stl stl/lid.stl svg/preview.svg svg/case_top.svg svg/plate.svg
 
 output/cases/body.stl output/cases/lid.stl: eskarp.yaml
 	ergogen $< -o output -d
