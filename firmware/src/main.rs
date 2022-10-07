@@ -19,7 +19,7 @@ mod app {
     use embedded_time::duration::units::Extensions;
     use heapless::spsc::Queue;
     use keyberon::action::Action::*;
-    use keyberon::action::{d, k, l, m, HoldTapConfig};
+    use keyberon::action::{d, k, l, m};
     use keyberon::debounce::Debouncer;
     use keyberon::hid;
     use keyberon::key_code::KeyCode::*;
@@ -62,6 +62,7 @@ mod app {
     const fn make_keymap() -> Layers {
         // aliases to keep keymap readable
         const K_NUBS: Action = k(NonUsBslash);
+        const K_PIPE: Action = m(&[LShift, NonUsBslash]);
         const K_BKTK: Action = k(Grave);
         const K_ENT: Action = k(Enter);
         const K_SPC: Action = k(Space);
@@ -93,20 +94,8 @@ mod app {
         const K_PAUS: Action = k(Pause);
         const K_RSTL: Action = Action::Custom(CustomKey::Reset(either::Left(())));
         const K_RSTR: Action = Action::Custom(CustomKey::Reset(either::Right(())));
-        const L_1: Action = HoldTap {
-            timeout: 200,
-            tap_hold_interval: 0,
-            config: HoldTapConfig::Default,
-            hold: &l(1),
-            tap: &d(1),
-        };
-        const L_2: Action = HoldTap {
-            timeout: 200,
-            tap_hold_interval: 0,
-            config: HoldTapConfig::Default,
-            hold: &l(2),
-            tap: &d(2),
-        };
+        const L_1: Action = l(1);
+        const L_2: Action = l(2);
         const CUT: Action = m(&[LCtrl, X]);
         const COPY: Action = m(&[LCtrl, C]);
         const PASTE: Action = m(&[LCtrl, V]);
@@ -124,15 +113,15 @@ mod app {
         ],
         // Nav / Select
         [
-            [NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    k(F11),   ],
-            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   K_APP,     k(F12),   ],
+            [NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    K_APP,    ],
+            [NoOp,      k(F11),  k(F12),   k(F13),  k(F14),  k(F15), NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   NoOp,      NoOp,     ],
             [k(LShift), NoOp,    CUT,      COPY,    PASTE,   UNDO,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
             [k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
             [NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  d(0),   k(RAlt), L_2,      k(RCtrl), NK,        NK,       ],
         ],
         // Symbols / Keypad 
         [
-            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    K_LT,    K_GT,   NK,    /*|*/ NK,    K_PIPE, k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
             [NoOp,      NoOp,    K_PLUS,   K_MINUS, K_LBRK,  K_RBRK, NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_MUL,     NoOp,     ],
             [k(LShift), NoOp,    K_MUL,    K_DIV,   K_LBRA,  K_RBRA, NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_MINUS,   NoOp,     ],
             [k(LCtrl),  NoOp,    K_LT,     K_GT,    K_LPAR,  K_RPAR, NoOp,  /*|*/ K_BSP, NoOp,   NoOp,    k(Kb0),   NoOp,     K_PLUS,    NoOp,     ],
