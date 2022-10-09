@@ -16,7 +16,7 @@ mod app {
         digital::v2::{InputPin, OutputPin},
         serial::{Read, Write},
     };
-    use embedded_time::duration::units::Extensions;
+    use fugit::ExtU64;
     use heapless::spsc::Queue;
     use keyberon::action::Action::*;
     use keyberon::action::{d, k, l, m};
@@ -30,10 +30,10 @@ mod app {
     use rp_pico::hal::prelude::*;
     use rp_pico::hal::gpio::dynpin::DynPin;
     use usb_device::bus::UsbBusAllocator;
-    use rp_pico::hal::timer::Alarm;
     use rp_pico::hal::pio::PIOExt;
     use ws2812_pio::Ws2812Direct;
     use smart_leds::{SmartLedsWrite, RGB8};
+    use rp2040_monotonic::Rp2040Monotonic;
 
     type UsbClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
@@ -62,7 +62,7 @@ mod app {
     const fn make_keymap() -> Layers {
         // aliases to keep keymap readable
         const K_NUBS: Action = k(NonUsBslash);
-        const K_PIPE: Action = m(&[LShift, NonUsBslash]);
+        const K_PIPE: Action = m(&[LShift, NonUsBslash].as_slice());
         const K_BKTK: Action = k(Grave);
         const K_ENT: Action = k(Enter);
         const K_SPC: Action = k(Space);
@@ -70,12 +70,12 @@ mod app {
         const K_APP: Action = k(Application);
         const K_LBRK: Action = k(LBracket);
         const K_RBRK: Action = k(RBracket);
-        const K_LBRA: Action = m(&[LShift, LBracket]);
-        const K_RBRA: Action = m(&[LShift, RBracket]);
-        const K_LPAR: Action = m(&[LShift, Kb9]);
-        const K_RPAR: Action = m(&[LShift, Kb0]);
-        const K_LT: Action = m(&[LShift, Comma]);
-        const K_GT: Action = m(&[LShift, Dot]);
+        const K_LBRA: Action = m(&[LShift, LBracket].as_slice());
+        const K_RBRA: Action = m(&[LShift, RBracket].as_slice());
+        const K_LPAR: Action = m(&[LShift, Kb9].as_slice());
+        const K_RPAR: Action = m(&[LShift, Kb0].as_slice());
+        const K_LT: Action = m(&[LShift, Comma].as_slice());
+        const K_GT: Action = m(&[LShift, Dot].as_slice());
         const K_HASH: Action = k(NonUsHash);
         const K_PLUS: Action = k(KpPlus);
         const K_MINUS: Action = k(KpMinus);
@@ -96,10 +96,10 @@ mod app {
         const K_RSTR: Action = Action::Custom(CustomKey::Reset(either::Right(())));
         const L_1: Action = l(1);
         const L_2: Action = l(2);
-        const CUT: Action = m(&[LCtrl, X]);
-        const COPY: Action = m(&[LCtrl, C]);
-        const PASTE: Action = m(&[LCtrl, V]);
-        const UNDO: Action = m(&[LCtrl, Z]);
+        const CUT: Action = m(&[LCtrl, X].as_slice());
+        const COPY: Action = m(&[LCtrl, C].as_slice());
+        const PASTE: Action = m(&[LCtrl, V].as_slice());
+        const UNDO: Action = m(&[LCtrl, Z].as_slice());
         const NK: Action = NoOp;
 
         #[rustfmt::skip]
@@ -172,7 +172,10 @@ mod app {
         }
     }
 
-    const SCAN_TIME_US: u32 = 1_000;
+    const SCAN_TIME_US: u64 = 1_000;
+
+    #[monotonic(binds = TIMER_IRQ_0, default = true)]
+    type Mono = Rp2040Monotonic;
 
     #[shared]
     struct Shared {
@@ -190,7 +193,6 @@ mod app {
         is_left: bool,
         status_led: StatusLed,
         transform: fn(Event) -> Event,
-        alarm: hal::timer::Alarm0,
     }
 
     #[init]
@@ -208,6 +210,8 @@ mod app {
         )
         .ok()
         .unwrap();
+
+        let timer_mono = Rp2040Monotonic::new(c.device.TIMER);
 
         // Set up the USB driver
         let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
@@ -232,11 +236,6 @@ mod app {
             sio.gpio_bank0,
             &mut resets,
         );
-
-        let mut timer = hal::Timer::new(c.device.TIMER, &mut resets);
-        let mut alarm = timer.alarm_0().unwrap();
-        let _ = alarm.schedule(SCAN_TIME_US.microseconds());
-        alarm.enable_interrupt();
 
         let uart_pins = (
             // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
@@ -289,6 +288,8 @@ mod app {
         );
         update_status_led(&mut status_led, StatusVal::Layer(0), 0);
 
+        kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
+
         let shared = Shared {
             layout: Layout::new(&LAYERS),
             media_queue: Queue::new(),
@@ -302,9 +303,8 @@ mod app {
             is_left,
             status_led,
             transform,
-            alarm,
         };
-        (shared, local, init::Monotonics())
+        (shared, local, init::Monotonics(timer_mono))
     }
 
     #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_class])]
@@ -316,14 +316,10 @@ mod app {
         });
     }
 
-    #[task(binds = TIMER_IRQ_0,
-           local = [kbd_state, transform, alarm],
-           shared = [uart])]
-    fn tick(c: tick::Context) {
-        let alarm = c.local.alarm;
-        alarm.clear_interrupt();
-        let _ = alarm.schedule(SCAN_TIME_US.microseconds());
 
+    #[task(local = [kbd_state, transform],
+           shared = [uart])]
+    fn kbd_scan(c: kbd_scan::Context) {
         let transform = c.local.transform;
         let kbd_state = c.local.kbd_state;
         let mut uart = c.shared.uart;
@@ -339,6 +335,7 @@ mod app {
             }
         });
         tick_keyberon::spawn().unwrap();
+        kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
     }
 
     #[task(binds = UART0_IRQ, shared = [uart, rxbuf])]
