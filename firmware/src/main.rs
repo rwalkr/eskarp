@@ -409,12 +409,12 @@ mod app {
 
                 while let Some(mk_report) = media_queue.dequeue() {
                     if usb_class.device_mut().set_mk_report(mk_report.clone()) {
-                        send_report::spawn(either::Right(mk_report)).ok();
+                        send_report::spawn(HIDReport::MediaKey(mk_report)).ok();
                     }
                 }
                 let report: KbHidReport = layout.keycodes().collect();
                 if usb_class.device_mut().set_kb_report(report.clone()) {
-                    send_report::spawn(either::Left(report)).ok();
+                    send_report::spawn(HIDReport::Keyboard(report)).ok();
                 }
             },
         );
@@ -423,13 +423,13 @@ mod app {
     #[task(shared = [usb_class], capacity = 8)]
     fn send_report(
         c: send_report::Context,
-        report: either::Either<KbHidReport, MediaKeyHidReport>,
+        report: HIDReport,
     ) {
         let mut usb_class = c.shared.usb_class;
         usb_class.lock(|usb_class| {
             let res = match report.clone() {
-                either::Left(mut r) => usb_class.write(r.as_bytes()),
-                either::Right(mut r) => usb_class.write(r.as_bytes()),
+                HIDReport::Keyboard(mut r) => usb_class.write(r.as_bytes()),
+                HIDReport::MediaKey(mut r) => usb_class.write(r.as_bytes()),
             };
             if let Ok(0) = res {
                 // no bytes written - rescedule to retry after next interrupt

@@ -207,3 +207,9 @@ impl KbHidReport {
         }
     }
 }
+
+#[derive(Clone)]
+pub enum HIDReport {
+    Keyboard(KbHidReport),
+    MediaKey(MediaKeyHidReport),
+}
