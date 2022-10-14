@@ -2,7 +2,7 @@
 #![no_main]
 #![no_std]
 
-use panic_halt as _;
+use rp2040_panic_usb_boot as _;
 use rtic::app;
 
 pub mod keyboard;

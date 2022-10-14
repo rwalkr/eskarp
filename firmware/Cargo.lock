@@ -205,9 +205,9 @@ dependencies = [
  "heapless",
  "keyberon",
  "nb 1.0.0",
- "panic-halt",
  "rp-pico",
  "rp2040-monotonic",
+ "rp2040-panic-usb-boot",
  "smart-leds",
  "usb-device",
  "ws2812-pio",
@@ -357,12 +357,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "panic-halt"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "paste"
@@ -555,6 +549,16 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "vcell",
+]
+
+[[package]]
+name = "rp2040-panic-usb-boot"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4454dcbfe028677daa9bf95f8229fa544783fe0584aa002a9a7d7957836da6f"
+dependencies = [
+ "cortex-m",
+ "rp2040-hal",
 ]
 
 [[package]]
