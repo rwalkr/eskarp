@@ -375,12 +375,18 @@ mod app {
                 let tick = layout.tick();
                 match tick {
                     // reset if reset key pressed 5 times
-                    CustomEvent::Release(CustomKey::Reset(k)) if k.is_left() == is_left => {
-                        *rset_count += 1;
+                    CustomEvent::Release(CustomKey::Reset(k)) => {
+                        if k.is_left() == is_left {
+                            *rset_count += 1;
+                        } else {
+                            *rset_count = 0;
+                        }
                         if *rset_count >= 5 {
                             *rset_count = 0;
                             update_status_led(status_led, StatusVal::Bootloader, 0);
-                            do_reset();
+                            if k.is_left() == is_left {
+                                do_reset();
+                            }
                         } else {
                             update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
                         }
