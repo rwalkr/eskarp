@@ -213,22 +213,6 @@ mod app {
 
         let timer_mono = Rp2040Monotonic::new(c.device.TIMER);
 
-        // Set up the USB driver
-        let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
-            c.device.USBCTRL_REGS,
-            c.device.USBCTRL_DPRAM,
-            clocks.usb_clock,
-            true,
-            &mut resets,
-        ));
-        let usb_bus = unsafe {
-            // Note (safety): This is safe as interrupts haven't been started yet
-            USB_BUS = Some(usb_bus);
-            USB_BUS.as_ref().unwrap()
-        };
-        let usb_class = hid::HidClass::new(KbState::default(), usb_bus);
-        let usb_dev = keyberon::new_device(usb_bus);
-
         let sio = hal::Sio::new(c.device.SIO);
         let pins = rp_pico::Pins::new(
             c.device.IO_BANK0,
@@ -287,6 +271,22 @@ mod app {
             clocks.peripheral_clock.freq(),
         );
         update_status_led(&mut status_led, StatusVal::Layer(0), 0);
+
+        // Set up the USB driver
+        let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
+            c.device.USBCTRL_REGS,
+            c.device.USBCTRL_DPRAM,
+            clocks.usb_clock,
+            true,
+            &mut resets,
+        ));
+        let usb_bus = unsafe {
+            // Note (safety): This is safe as interrupts haven't been started yet
+            USB_BUS = Some(usb_bus);
+            USB_BUS.as_ref().unwrap()
+        };
+        let usb_class = hid::HidClass::new(KbState::default(), usb_bus);
+        let usb_dev = keyberon::new_device(usb_bus);
 
         kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
 
