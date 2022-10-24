@@ -33,6 +33,7 @@ mod app {
     use rp_pico::hal::prelude::*;
     use rp_pico::hal::gpio::dynpin::DynPin;
     use usb_device::bus::UsbBusAllocator;
+    use usb_device::prelude::*;
     use rp_pico::hal::pio::PIOExt;
     use ws2812_pio::Ws2812Direct;
     use smart_leds::{SmartLedsWrite, RGB8};
@@ -41,6 +42,10 @@ mod app {
     type UsbClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
+
+    // Test PID from https://pid.codes/1209/
+    const VID: u16 = 0x1209;
+    const PID: u16 = 0x0001;
 
     type UartPins = (
         hal::gpio::Pin<hal::gpio::pin::bank0::Gpio0, hal::gpio::Function<hal::gpio::Uart>>,
@@ -289,7 +294,11 @@ mod app {
             USB_BUS.as_ref().unwrap()
         };
         let usb_class = hid::HidClass::new(KbState::default(), usb_bus);
-        let usb_dev = keyberon::new_device(usb_bus);
+        let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(VID, PID))
+            .manufacturer("rwalkr")
+            .product("eskarp")
+            .serial_number(env!("CARGO_PKG_VERSION"))
+            .build();
 
         info!("Ready!");
 
