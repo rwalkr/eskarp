@@ -17,6 +17,8 @@ smart-leds = "0.3"
 usb-device = "0.2.0"
 ws2812-pio = "0.4"
 rp2040-monotonic = "1.1.0"
+defmt = "0.3"
+defmt-rtt = "0.3"
 
 [dependencies.cortex-m-rt]
 features = ["device"]
@@ -29,9 +31,55 @@ version = "1.6.1"
 [dependencies.keyberon]
 git = "https://github.com/TeXitoi/keyberon"
 
-[profile]
-[profile.release]
-debug = true
+
+# cargo build/run
+[profile.dev]
+codegen-units = 1
+debug = 2
+debug-assertions = true
 incremental = false
-lto = true
-opt-level = "z"
+opt-level = 3
+overflow-checks = true
+
+# cargo build/run --release
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 3
+overflow-checks = false
+
+# do not optimize proc-macro crates = faster builds from scratch
+[profile.dev.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
+
+[profile.release.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
+
+# cargo test
+[profile.test]
+codegen-units = 1
+debug = 2
+debug-assertions = true
+incremental = false
+opt-level = 3
+overflow-checks = true
+
+# cargo test --release
+[profile.bench]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 3

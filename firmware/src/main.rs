@@ -11,6 +11,9 @@ pub mod keyboard;
       peripherals = true,
       dispatchers = [DMA_IRQ_0])]
 mod app {
+    use defmt::*;
+    use defmt_rtt as _;
+
     use crate::keyboard::*;
     use embedded_hal::{
         digital::v2::{InputPin, OutputPin},
@@ -287,6 +290,8 @@ mod app {
         };
         let usb_class = hid::HidClass::new(KbState::default(), usb_bus);
         let usb_dev = keyberon::new_device(usb_bus);
+
+        info!("Ready!");
 
         kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
 
