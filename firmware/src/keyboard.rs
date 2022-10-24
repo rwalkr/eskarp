@@ -67,6 +67,12 @@ pub enum MediaKey {
     AudioVolDown = 0x0EA,
 }
 
+#[derive(Clone)]
+pub enum KbReport {
+    Keyboard(KbHidReport),
+    MediaKey(MediaKeyHidReport),
+}
+
 #[derive(Default)]
 pub struct KbState {
     mk_report: MediaKeyHidReport,
@@ -206,10 +212,4 @@ impl KbHidReport {
             *c = kc as u8;
         }
     }
-}
-
-#[derive(Clone)]
-pub enum HIDReport {
-    Keyboard(KbHidReport),
-    MediaKey(MediaKeyHidReport),
 }

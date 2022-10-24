@@ -39,7 +39,7 @@ mod app {
     use smart_leds::{SmartLedsWrite, RGB8};
     use rp2040_monotonic::Rp2040Monotonic;
 
-    type UsbClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
+    type UsbKeyboardClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 
@@ -190,7 +190,7 @@ mod app {
         layout: Layout,
         media_queue: Queue<MediaKeyHidReport, 8>,
         usb_dev: UsbDevice,
-        usb_class: UsbClass,
+        usb_kb_class: UsbKeyboardClass,
         uart: UartDevice,
         rxbuf: [u8; 4],
     }
@@ -293,7 +293,7 @@ mod app {
             USB_BUS = Some(usb_bus);
             USB_BUS.as_ref().unwrap()
         };
-        let usb_class = hid::HidClass::new(KbState::default(), usb_bus);
+        let usb_kb_class = hid::HidClass::new(KbState::default(), usb_bus);
         let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(VID, PID))
             .manufacturer("rwalkr")
             .product("eskarp")
@@ -308,7 +308,7 @@ mod app {
             layout: Layout::new(&LAYERS),
             media_queue: Queue::new(),
             usb_dev,
-            usb_class,
+            usb_kb_class,
             uart,
             rxbuf: [0; 4],
         };
@@ -321,12 +321,12 @@ mod app {
         (shared, local, init::Monotonics(timer_mono))
     }
 
-    #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_class])]
+    #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_kb_class])]
     fn usbctrl(c: usbctrl::Context) {
         let usb_dev = c.shared.usb_dev;
-        let usb_class = c.shared.usb_class;
-        (usb_dev, usb_class).lock(|usb_dev, usb_class| {
-            usb_dev.poll(&mut [usb_class]);
+        let usb_kb_class = c.shared.usb_kb_class;
+        (usb_dev, usb_kb_class).lock(|usb_dev, usb_kb_class| {
+            usb_dev.poll(&mut [usb_kb_class]);
         });
     }
 
@@ -373,19 +373,19 @@ mod app {
         c.shared.layout.lock(|layout| layout.event(event));
     }
 
-    #[task(shared = [layout, media_queue, usb_dev, usb_class],
+    #[task(shared = [layout, media_queue, usb_dev, usb_kb_class],
            local = [is_left, status_led, cur_layer: usize = 0, rset_count: u32 = 0])]
     fn tick_keyberon(c: tick_keyberon::Context) {
         let usb_dev = c.shared.usb_dev;
-        let usb_class = c.shared.usb_class;
+        let usb_kb_class = c.shared.usb_kb_class;
         let layout = c.shared.layout;
         let media_queue = c.shared.media_queue;
         let is_left = *c.local.is_left;
         let status_led = c.local.status_led;
         let cur_layer = c.local.cur_layer;
         let rset_count = c.local.rset_count;
-        (usb_dev, usb_class, layout, media_queue).lock(
-            |usb_dev, usb_class, layout, media_queue| {
+        (usb_dev, usb_kb_class, layout, media_queue).lock(
+            |usb_dev, usb_kb_class, layout, media_queue| {
                 let tick = layout.tick();
                 match tick {
                     // reset if reset key pressed 5 times
@@ -428,32 +428,41 @@ mod app {
                 }
 
                 while let Some(mk_report) = media_queue.dequeue() {
-                    if usb_class.device_mut().set_mk_report(mk_report.clone()) {
-                        send_report::spawn(HIDReport::MediaKey(mk_report)).ok();
+                    if usb_kb_class.device_mut().set_mk_report(mk_report.clone()) {
+                        send_kb_report::spawn(KbReport::MediaKey(mk_report)).ok();
                     }
                 }
                 let report: KbHidReport = layout.keycodes().collect();
-                if usb_class.device_mut().set_kb_report(report.clone()) {
-                    send_report::spawn(HIDReport::Keyboard(report)).ok();
+                if usb_kb_class.device_mut().set_kb_report(report.clone()) {
+                    send_kb_report::spawn(KbReport::Keyboard(report)).ok();
                 }
             },
         );
     }
 
-    #[task(shared = [usb_class], capacity = 8)]
-    fn send_report(
-        c: send_report::Context,
-        report: HIDReport,
+    #[task(shared = [usb_kb_class], capacity = 8)]
+    fn send_kb_report(
+        c: send_kb_report::Context,
+        report: KbReport,
     ) {
-        let mut usb_class = c.shared.usb_class;
-        usb_class.lock(|usb_class| {
+        let mut usb_kb_class = c.shared.usb_kb_class;
+        usb_kb_class.lock(|usb_kb_class| {
             let res = match report.clone() {
-                HIDReport::Keyboard(mut r) => usb_class.write(r.as_bytes()),
-                HIDReport::MediaKey(mut r) => usb_class.write(r.as_bytes()),
+                KbReport::Keyboard(mut r) => usb_kb_class.write(r.as_bytes()),
+                KbReport::MediaKey(mut r) => usb_kb_class.write(r.as_bytes()),
             };
-            if let Ok(0) = res {
-                // no bytes written - rescedule to retry after next interrupt
-                send_report::spawn(report).ok();
+            match res {
+                Ok(0) => {
+                    // no bytes written - rescedule to retry after next interrupt
+                    info!("send_kb_report: retry");
+                    send_kb_report::spawn(report).ok();
+                },
+                Ok(n) => {
+                    info!("send_kb_report: {}", n);
+                },
+                Err(_) => {
+                    info!("send_kb_report: ERR");
+                },
             }
         });
     }
