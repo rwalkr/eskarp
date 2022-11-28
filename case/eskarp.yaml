@@ -172,6 +172,18 @@ outlines:
           # ref: thumbfan_far_thumb
           # shift: [-0.5U-B - 9 - 0.65, 0.75U - 3X - 7]
         size: [7, 12.3]
+    _led_cutout:
+      - type: rectangle
+        anchor:
+          ref: matrix_inner_middle
+          shift: [0.5U+B+3 + 21.0/2 - 5.5/2, 0 - 5.5/2]
+        size: [ 5.5, 5.5 ]
+    _touchpad_cutout:
+      - type: rectangle
+        anchor:
+          ref: matrix_inner_home
+          shift: [ 0.5U + 6, -7.5 ]
+        size: [ 5, 15 ]
     _posts_template:
       $params: [__r__]
       top_left:
@@ -253,6 +265,12 @@ outlines:
         name: _jst_socket
         operation: stack
       - type: outline
+        name: _led_cutout
+        operation: stack
+      - type: outline
+        name: _touchpad_cutout
+        operation: stack
+      - type: outline
         name: _posts
         operation: stack
       - type: outline
@@ -263,16 +281,16 @@ outlines:
         name: _plate_inner_3
         operation: stack
 cases:
-  body:
+  _body:
     # switch is 8.3 mm deep
     # plate is 2mm
-    # case is 6.4mm
+    # case is 6.0mm
     # lid is 1.6mm
     # total 10mm depth, 8.4mm inner
     - name: case_lip
       extrude: 1.6
     - name: case_wall
-      extrude: 6.4
+      extrude: 6.1
       shift: [0, 0, 1.6]
     - name: case_top
       extrude: 2
@@ -290,11 +308,30 @@ cases:
       operation: subtract
     - name: _usb_cutout
       extrude: 3.6
-      shift: [0, 0, 3.2]
+      shift: [0, 0, 2.2]
       operation: subtract
     - name: _jst_cutout
       extrude: 5.2
       shift: [0, 0, 6+1.6 - 5.2]
+      operation: subtract
+  body:
+    - type: case
+      name: _body
+  body_led:
+    - type: case
+      name: _body
+    - name: _led_cutout
+      type: outline
+      extrude: 2.2
+      shift: [0, 0, 6 + 1.6 - 0.1]
+      operation: subtract
+  body_tp:
+    - type: case
+      name: _body
+    - name: _touchpad_cutout
+      type: outline
+      extrude: 2.2
+      shift: [0, 0, 6 + 1.6 - 0.1]
       operation: subtract
   lid:
     - name: _plate_inner_2
