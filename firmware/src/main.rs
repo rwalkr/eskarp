@@ -206,6 +206,7 @@ mod app {
         is_left: bool,
         status_led: StatusLed,
         transform: fn(Event) -> Event,
+        delay: cortex_m::delay::Delay,
     }
 
     #[init]
@@ -276,6 +277,8 @@ mod app {
         ];
         let kbd_state = KeyboardState::new(rows, cols);
 
+        let delay = cortex_m::delay::Delay::new(c.core.SYST, clocks.system_clock.freq().to_Hz());
+
         let (mut pio, sm0, _, _, _) = c.device.PIO0.split(&mut resets);
         let mut status_led = Ws2812Direct::new(
             pins.gpio26.into_mode(),
@@ -322,6 +325,7 @@ mod app {
             is_left,
             status_led,
             transform,
+            delay,
         };
         (shared, local, init::Monotonics(timer_mono))
     }
@@ -335,14 +339,19 @@ mod app {
         });
     }
 
-    #[task(local = [kbd_state, transform],
-           shared = [uart])]
+    #[task(local = [kbd_state, transform, delay], shared = [uart])]
     fn kbd_scan(c: kbd_scan::Context) {
         let transform = c.local.transform;
         let kbd_state = c.local.kbd_state;
+        let delay = c.local.delay;
         let mut uart = c.shared.uart;
         uart.lock(|uart| {
-            let matrix_state = kbd_state.matrix.get().unwrap();
+            let matrix_state = kbd_state
+                .matrix
+                .get_with_delay(|| {
+                    delay.delay_us(10);
+                })
+                .unwrap();
             let events = kbd_state.debouncer.events(matrix_state);
             for event in events {
                 let event = transform(event);
