@@ -29,15 +29,15 @@ mod app {
     use keyberon::layout::{CustomEvent, Event};
     use keyberon::matrix::Matrix;
     use nb::block;
+    use rp2040_monotonic::Rp2040Monotonic;
     use rp_pico::hal;
-    use rp_pico::hal::prelude::*;
     use rp_pico::hal::gpio::dynpin::DynPin;
+    use rp_pico::hal::pio::PIOExt;
+    use rp_pico::hal::prelude::*;
+    use smart_leds::{SmartLedsWrite, RGB8};
     use usb_device::bus::UsbBusAllocator;
     use usb_device::prelude::*;
-    use rp_pico::hal::pio::PIOExt;
     use ws2812_pio::Ws2812Direct;
-    use smart_leds::{SmartLedsWrite, RGB8};
-    use rp2040_monotonic::Rp2040Monotonic;
 
     type UsbKeyboardClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
@@ -56,7 +56,7 @@ mod app {
     type StatusLed = Ws2812Direct<hal::pac::PIO0, hal::pio::SM0, hal::gpio::pin::bank0::Gpio26>;
     enum StatusVal {
         Layer(usize),
-        Bootloader
+        Bootloader,
     }
 
     pub enum CustomKey {
@@ -335,7 +335,6 @@ mod app {
         });
     }
 
-
     #[task(local = [kbd_state, transform],
            shared = [uart])]
     fn kbd_scan(c: kbd_scan::Context) {
@@ -407,7 +406,11 @@ mod app {
                                 do_reset();
                             }
                         } else {
-                            update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
+                            update_status_led(
+                                status_led,
+                                StatusVal::Layer(*cur_layer),
+                                *rset_count,
+                            );
                         }
                     }
                     CustomEvent::Press(CustomKey::Media(k)) => {
@@ -417,7 +420,6 @@ mod app {
                         media_queue.enqueue(MediaKeyHidReport::default()).ok();
                     }
                     _ => {}
-
                 }
 
                 if layout.current_layer() != *cur_layer {
@@ -446,10 +448,7 @@ mod app {
     }
 
     #[task(shared = [usb_kb_class], capacity = 8)]
-    fn send_kb_report(
-        c: send_kb_report::Context,
-        report: KbReport,
-    ) {
+    fn send_kb_report(c: send_kb_report::Context, report: KbReport) {
         let mut usb_kb_class = c.shared.usb_kb_class;
         usb_kb_class.lock(|usb_kb_class| {
             let res = match report.clone() {
@@ -461,13 +460,13 @@ mod app {
                     // no bytes written - rescedule to retry after next interrupt
                     info!("send_kb_report: retry");
                     send_kb_report::spawn(report).ok();
-                },
+                }
                 Ok(n) => {
                     info!("send_kb_report: {}", n);
-                },
+                }
                 Err(_) => {
                     info!("send_kb_report: ERR");
-                },
+                }
             }
         });
     }
@@ -494,7 +493,8 @@ mod app {
             StatusVal::Layer(3) => (8 + 8 * rset_count as u8, 0, 0),
             StatusVal::Bootloader => (8, 4, 0),
             _ => (0, 0, 0),
-        }.into();
+        }
+        .into();
         status_led.write([led_color].iter().copied()).unwrap();
     }
 
