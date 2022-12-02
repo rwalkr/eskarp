@@ -1,13 +1,13 @@
 # Eskarp
 
-![Eskarp keyboard](media/eskarp.jpg)
+![Eskarp keyboard](media/eskarp_tp.jpg)
 
-An ergonomic, column staggered split keyboard.  Inspired by keyboards such as
-[Lily58](https://github.com/kata0510/Lily58) and
-[Sofle](https://josefadamcik.github.io/SofleKeyboard/).  Uses a 3D printed case,
-with handwired MX compatible switches and a [Raspbery Pi
-Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) controller in
-each half.  Designed using [Ergogen](https://ergogen.xyz/).
+An ergonomic, column staggered split keyboard with optional touchpad.
+Inspired by keyboards such as [Lily58](https://github.com/kata0510/Lily58)
+and [Sofle](https://josefadamcik.github.io/SofleKeyboard/).  Uses a 3D
+printed case, with handwired MX compatible switches and a [Raspbery Pi
+Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) controller
+in each half.  Designed using [Ergogen](https://ergogen.xyz/).
 
 ## Firmware
 
@@ -57,6 +57,28 @@ An optional WS2812b LED can be added to indicate the current layer.  This was
 added after the case was designed and printed, so a hole was drilled into the
 top for the wires to the LED.
 
+## Touchpad
+
+![Eskarp touchpad](media/eskarp_tp_rhs.jpg)
+
+An optional touchpad can be fitted to the case, using the TPS65-201A-S from
+Azoteq.  This will appear as a USB HID mouse to the host computer.
+
+The touchpad sits in a 3D printed holder and is wired to the RP Pico pins
+as:
+
+* 10: RDY
+* 11: RST
+* 12: SDA
+* 13: SCL
+* 36: VDD (3.3V)
+* 38: GND
+
+It can be fitted to either side - the firmware will detect the presence of
+the touchpad - but must be on the same side as the USB connection to the
+host computer (the mouse reports are not sent over the serial link to the
+other half of the keyboard).
+
 ## BOM
 
 * 3D printed case top - left and right
@@ -67,10 +89,11 @@ top for the wires to the LED.
 * 60x keycaps
 * 8x No2 gauge, 1/4" screws
 * 2x Raspberry PI Pico
-* 1x WS2812b compatible LED (optional)
 * 2x JST-XH 4 pin sockets
 * 2x JST-XH 4 pin plugs
 * 4 wire cable
+* (Optional) 1x WS2812b compatible LED
+* (Optional) TPS65-201A-S available from Digikey or Mouser
 
 ## Acknowledgments
 

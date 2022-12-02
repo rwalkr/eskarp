@@ -250,7 +250,9 @@ dependencies = [
  "embedded-hal",
  "fugit",
  "heapless",
+ "iqs5xx",
  "keyberon",
+ "micromath",
  "nb 1.0.0",
  "rp-pico",
  "rp2040-monotonic",
@@ -317,6 +319,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "iqs5xx"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "662bde860006525ab2d9e424feea4bf716f0d018fbc1a15efb814aedf4f2db47"
+dependencies = [
+ "defmt",
+ "embedded-hal",
+ "paste",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -369,6 +382,12 @@ name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+
+[[package]]
+name = "micromath"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39617bc909d64b068dcffd0e3e31679195b5576d0c83fadc52690268cc2b2b55"
 
 [[package]]
 name = "nb"

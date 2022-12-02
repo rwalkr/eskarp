@@ -5,7 +5,9 @@
 use rp2040_panic_usb_boot as _;
 use rtic::app;
 
-pub mod keyboard;
+mod keyboard;
+mod mouse;
+mod touchpad;
 
 #[app(device = rp_pico::hal::pac,
       peripherals = true,
@@ -15,11 +17,13 @@ mod app {
     use defmt_rtt as _;
 
     use crate::keyboard::*;
+    use crate::mouse::{HidMouse, MouseReport};
+    use crate::touchpad;
     use embedded_hal::{
         digital::v2::{InputPin, OutputPin},
         serial::{Read, Write},
     };
-    use fugit::ExtU64;
+    use fugit::{ExtU64, RateExtU32};
     use heapless::spsc::Queue;
     use keyberon::action::Action::*;
     use keyberon::action::{d, k, l, m};
@@ -40,6 +44,7 @@ mod app {
     use ws2812_pio::Ws2812Direct;
 
     type UsbKeyboardClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
+    type UsbMouseClass = hid::HidClass<'static, hal::usb::UsbBus, HidMouse>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 
@@ -58,6 +63,22 @@ mod app {
         Layer(usize),
         Bootloader,
     }
+
+    type IQS5xxRdyPin = hal::gpio::Pin<hal::gpio::bank0::Gpio10, hal::gpio::FloatingInput>;
+    type IQS5xxRstPin = hal::gpio::Pin<hal::gpio::bank0::Gpio11, hal::gpio::PushPullOutput>;
+    type I2CSDAPin = hal::gpio::Pin<hal::gpio::bank0::Gpio12, hal::gpio::FunctionI2C>;
+    type I2CSCLPin = hal::gpio::Pin<hal::gpio::bank0::Gpio13, hal::gpio::FunctionI2C>;
+    type IQS5xx = iqs5xx::IQS5xx<
+        hal::I2C<hal::pac::I2C0, (I2CSDAPin, I2CSCLPin)>,
+        IQS5xxRdyPin,
+        IQS5xxRstPin,
+    >;
+    type Touchpad = touchpad::Touchpad<
+        hal::I2C<hal::pac::I2C0, (I2CSDAPin, I2CSCLPin)>,
+        IQS5xxRdyPin,
+        IQS5xxRstPin,
+        AppTimer,
+    >;
 
     pub enum CustomKey {
         Media(MediaKey),
@@ -196,8 +217,10 @@ mod app {
         media_queue: Queue<MediaKeyHidReport, 8>,
         usb_dev: UsbDevice,
         usb_kb_class: UsbKeyboardClass,
+        usb_mouse_class: UsbMouseClass,
         uart: UartDevice,
         rxbuf: [u8; 4],
+        touchpad: Option<Touchpad>,
     }
 
     #[local]
@@ -277,7 +300,8 @@ mod app {
         ];
         let kbd_state = KeyboardState::new(rows, cols);
 
-        let delay = cortex_m::delay::Delay::new(c.core.SYST, clocks.system_clock.freq().to_Hz());
+        let mut delay =
+            cortex_m::delay::Delay::new(c.core.SYST, clocks.system_clock.freq().to_Hz());
 
         let (mut pio, sm0, _, _, _) = c.device.PIO0.split(&mut resets);
         let mut status_led = Ws2812Direct::new(
@@ -287,6 +311,34 @@ mod app {
             clocks.peripheral_clock.freq(),
         );
         update_status_led(&mut status_led, StatusVal::Layer(0), 0);
+
+        // Configure I²C interface
+        let sda_pin = pins.gpio12.into_mode::<hal::gpio::FunctionI2C>();
+        let scl_pin = pins.gpio13.into_mode::<hal::gpio::FunctionI2C>();
+        let i2c = hal::I2C::i2c0(
+            c.device.I2C0,
+            sda_pin,
+            scl_pin,
+            400.kHz(),
+            &mut resets,
+            &clocks.system_clock,
+        );
+
+        // create ready pin handler - using IRQs and WFI
+        let rdy_pin: IQS5xxRdyPin = pins.gpio10.into_floating_input();
+        rdy_pin.set_interrupt_enabled(hal::gpio::Interrupt::EdgeHigh, true);
+        let rst_pin: IQS5xxRstPin = pins.gpio11.into_push_pull_output();
+
+        info!("Init IQS5xx");
+        let iqs = IQS5xx::new(i2c, 0x74, rdy_pin, rst_pin);
+        let timer = AppTimer::new();
+        let touchpad = match Touchpad::new(iqs, timer, &mut delay) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                warn!("IQS5xx touchpad not found: {}", e);
+                None
+            }
+        };
 
         // Set up the USB driver
         let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
@@ -302,6 +354,7 @@ mod app {
             USB_BUS.as_ref().unwrap()
         };
         let usb_kb_class = hid::HidClass::new(KbState::default(), usb_bus);
+        let usb_mouse_class = hid::HidClass::new(HidMouse::default(), usb_bus);
         let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(VID, PID))
             .manufacturer("rwalkr")
             .product("eskarp")
@@ -317,8 +370,10 @@ mod app {
             media_queue: Queue::new(),
             usb_dev,
             usb_kb_class,
+            usb_mouse_class,
             uart,
             rxbuf: [0; 4],
+            touchpad,
         };
         let local = Local {
             kbd_state,
@@ -330,12 +385,34 @@ mod app {
         (shared, local, init::Monotonics(timer_mono))
     }
 
-    #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_kb_class])]
+    #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_kb_class, usb_mouse_class])]
     fn usbctrl(c: usbctrl::Context) {
         let usb_dev = c.shared.usb_dev;
         let usb_kb_class = c.shared.usb_kb_class;
-        (usb_dev, usb_kb_class).lock(|usb_dev, usb_kb_class| {
-            usb_dev.poll(&mut [usb_kb_class]);
+        let usb_mouse_class = c.shared.usb_mouse_class;
+        (usb_dev, usb_kb_class, usb_mouse_class).lock(|usb_dev, usb_kb_class, usb_mouse_class| {
+            usb_dev.poll(&mut [usb_kb_class, usb_mouse_class]);
+        });
+    }
+
+    #[task(binds = IO_IRQ_BANK0, priority = 2, shared = [touchpad])]
+    fn io_irq(c: io_irq::Context) {
+        let mut touchpad = c.shared.touchpad;
+
+        touchpad.lock(|touchpad| {
+            if let Some(touchpad) = touchpad {
+                touchpad.clear_irq(|pin: &mut IQS5xxRdyPin| {
+                    if pin.interrupt_status(hal::gpio::Interrupt::EdgeHigh) {
+                        // clear the IRQ
+                        pin.clear_interrupt(hal::gpio::Interrupt::EdgeHigh);
+                    }
+                });
+
+                info!("IRQ!!");
+                touchpad.process(|rep| {
+                    send_mouse_report::spawn(rep).ok();
+                });
+            }
         });
     }
 
@@ -484,6 +561,41 @@ mod app {
         });
     }
 
+    #[task(shared = [usb_mouse_class], capacity = 8)]
+    fn send_mouse_report(c: send_mouse_report::Context, report: MouseReport) {
+        let mut usb_mouse_class = c.shared.usb_mouse_class;
+        usb_mouse_class.lock(|usb_mouse_class| {
+            info!("HIDReport::Mouse");
+            let res = usb_mouse_class.write(report.clone().as_bytes());
+            match res {
+                Ok(0) => {
+                    // no bytes written - rescedule to retry after next interrupt
+                    info!("send_mouse_report: retry");
+                    send_mouse_report::spawn(report).ok();
+                }
+                Ok(n) => {
+                    info!("send_mouse_report: {}", n);
+                }
+                Err(_) => {
+                    info!("send_mouse_report: ERR");
+                }
+            }
+        });
+    }
+
+    #[task(shared = [touchpad])]
+    fn move_tick(c: move_tick::Context) {
+        let mut touchpad = c.shared.touchpad;
+
+        touchpad.lock(|touchpad| {
+            if let Some(touchpad) = touchpad {
+                touchpad.tick(&mut |report| {
+                    send_mouse_report::spawn(report).ok();
+                });
+            }
+        });
+    }
+
     fn de(bytes: &[u8]) -> Result<Event, ()> {
         match *bytes {
             [b'P', i, j, b'\n'] => Ok(Event::Press(i, j)),
@@ -513,5 +625,33 @@ mod app {
 
     fn do_reset() {
         hal::rom_data::reset_to_usb_boot(0, 0);
+    }
+
+    pub struct AppTimer {
+        tick_handle: Option<move_tick::SpawnHandle>,
+    }
+
+    impl AppTimer {
+        fn new() -> Self {
+            AppTimer { tick_handle: None }
+        }
+    }
+
+    impl touchpad::Timer for AppTimer {
+        fn start(&mut self, delay: u64) {
+            self.cancel();
+            self.tick_handle = move_tick::spawn_after(delay.millis()).ok();
+        }
+
+        fn cancel(&mut self) {
+            let old_handle = self.tick_handle.take();
+            if let Some(h) = old_handle {
+                h.cancel().ok();
+            }
+        }
+
+        fn reschedule(&mut self, interval: u64) {
+            self.tick_handle = move_tick::spawn_after(interval.millis()).ok();
+        }
     }
 }
