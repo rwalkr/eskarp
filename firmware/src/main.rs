@@ -387,7 +387,7 @@ mod app {
     }
 
     #[task(shared = [layout, media_queue, usb_dev, usb_kb_class],
-           local = [is_left, status_led, cur_layer: usize = 0, rset_count: u32 = 0])]
+           local = [is_left, status_led, cur_layer: usize = 0, rset_left: bool = false, rset_count: u32 = 0])]
     fn tick_keyberon(c: tick_keyberon::Context) {
         let usb_dev = c.shared.usb_dev;
         let usb_kb_class = c.shared.usb_kb_class;
@@ -396,6 +396,7 @@ mod app {
         let is_left = *c.local.is_left;
         let status_led = c.local.status_led;
         let cur_layer = c.local.cur_layer;
+        let rset_left = c.local.rset_left;
         let rset_count = c.local.rset_count;
         (usb_dev, usb_kb_class, layout, media_queue).lock(
             |usb_dev, usb_kb_class, layout, media_queue| {
@@ -403,7 +404,10 @@ mod app {
                 match tick {
                     // reset if reset key pressed 5 times
                     CustomEvent::Release(CustomKey::Reset(k)) => {
-                        if k.is_left() == is_left {
+                        if *rset_count == 0 || k.is_left() != *rset_left {
+                            *rset_left = k.is_left();
+                            *rset_count = 1;
+                        } else if k.is_left() == *rset_left {
                             *rset_count += 1;
                         } else {
                             *rset_count = 0;
@@ -411,7 +415,7 @@ mod app {
                         if *rset_count >= 5 {
                             *rset_count = 0;
                             update_status_led(status_led, StatusVal::Bootloader, 0);
-                            if k.is_left() == is_left {
+                            if *rset_left == is_left {
                                 do_reset();
                             }
                         } else {
