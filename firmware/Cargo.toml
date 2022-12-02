@@ -1,8 +1,12 @@
 [package]
-authors = ["Robert Walker <rob@tenfoot.org.uk>"]
 edition = "2021"
 name = "eskarp"
 version = "0.1.0"
+authors = ["Robert Walker <rob@tenfoot.org.uk>"]
+description = "Eskarp ergonomic keyboard firmware"
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/rwalkr/eskarp"
 
 [dependencies]
 cortex-m = "0.7"
