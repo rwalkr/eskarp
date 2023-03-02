@@ -143,7 +143,7 @@ mod app {
             [k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NK,    /*|*/ NK,    k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
             [k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NK,    /*|*/ NK,    k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
             [k(LCtrl),  k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
-            [NK,        NK,      NoOp,     k(LGui), k(LAlt), L_1,    K_SPC, /*|*/ K_SPC, L_2,    k(RAlt), L_1,      k(RCtrl), NK,        NK,       ],
+            [NK,        NK,      k(LGui),  L_2,     k(LAlt), L_1,    K_SPC, /*|*/ L_1,   L_2,    k(LAlt), k(LGui),  k(LCtrl), NK,        NK,       ],
         ],
         // Nav / Select
         [
@@ -151,15 +151,15 @@ mod app {
             [NoOp,      k(F11),  k(F12),   k(F13),  k(F14),  k(F15), NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   NoOp,      NoOp,     ],
             [k(LShift), NoOp,    CUT,      COPY,    PASTE,   NoOp,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
             [k(LCtrl),  NoOp,    NoOp,     NoOp,    UNDO,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
-            [NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  d(0),   k(RAlt), L_2,      k(RCtrl), NK,        NK,       ],
+            [NK,        NK,      k(LGui),  d(0),    k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  L_2,    k(LAlt), k(LGui),  k(LCtrl), NK,        NK,       ],
         ],
         // Symbols / Keypad 
         [
-            [NoOp,      K_QUMK,  K_COLN,   K_AMP,   K_HASH,  K_NUBS, NK,    /*|*/ NK,    K_TILD, k(Kb7),  k(Kb8),   k(Kb9),   K_DIV,     NoOp,     ],
-            [NoOp,      K_EQ,    K_PLUS,   K_MINUS, K_MUL,   K_DIV,  NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_MUL,     NoOp,     ],
-            [k(LShift), NoOp,    K_LT,     K_LPAR,  K_LBRA,  K_LBRK, NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_MINUS,   NoOp,     ],
-            [k(LCtrl),  NoOp,    K_GT,     K_RPAR,  K_RBRA,  K_RBRK, NoOp,  /*|*/ K_BSP, K_PIPE, NoOp,    k(Kb0),   NoOp,     K_PLUS,    NoOp,     ],
-            [NK,        NK,      NoOp,     k(LGui), k(LAlt), d(0),   K_SPC, /*|*/ K_ENT, d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
+            [NoOp,      K_QUMK,  K_COLN,   K_AMP,   K_HASH,  K_NUBS, NK,    /*|*/ NK,    K_TILD, k(Kb7),  k(Kb8),   k(Kb9),   K_LBRK,    K_RBRK,   ],
+            [NoOp,      NoOp,    NoOp,     NoOp,    K_MUL,   K_DIV,  NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_LBRA,    K_RBRA,   ],
+            [k(LShift), NoOp,    NoOp,     NoOp,    K_PLUS,  K_MINUS,NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_LPAR,    K_RPAR,   ],
+            [k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    K_EQ,   K_ENT, /*|*/ K_BSP, K_PIPE, NoOp,    k(Kb0),   k(Dot),   K_LT,      K_GT,     ],
+            [NK,        NK,      k(LGui),  d(0),    k(LAlt), d(0),   K_SPC, /*|*/ L_1,   d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
         ],
         // System
         [
