@@ -268,7 +268,7 @@ mod app {
         // Make a UART on the given pins
         let mut uart = hal::uart::UartPeripheral::new(c.device.UART0, uart_pins, &mut resets)
             .enable(
-                hal::uart::common_configs::_38400_8_N_1,
+                hal::uart::UartConfig::new(38400.Hz(), hal::uart::DataBits::Eight, None, hal::uart::StopBits::One),
                 clocks.peripheral_clock.freq(),
             )
             .unwrap();
