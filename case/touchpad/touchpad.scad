@@ -8,6 +8,7 @@ tp_r = 2.5;
 
 wall_t = 1.6;
 base_t = 1.2;
+plate_t = 0.6;
 
 box_h = 9;
 box_w = tp_w + 2*wall_t;
@@ -32,12 +33,21 @@ module rounded_cube(x, y, z, r) {
 }
 
 
-difference() {
-    rounded_cube(box_w, box_d, box_h, box_r);
-    translate([box_inner_l, box_inner_l, base_t])
-        rounded_cube(box_inner_w, box_inner_d, box_h, box_inner_r);
-    translate([wall_t, wall_t, box_h-tp_h])
-        rounded_cube(tp_w, tp_d, tp_h+0.1, tp_r);
-    translate([box_w - 8, box_d/2-5, -0.1])
-        cube([2, 10, base_t+0.2]);
+module touchpad_case() {
+    difference() {
+        rounded_cube(box_w, box_d, box_h, box_r);
+        translate([box_inner_l, box_inner_l, base_t])
+            rounded_cube(box_inner_w, box_inner_d, box_h, box_inner_r);
+        translate([wall_t, wall_t, box_h-tp_h])
+            rounded_cube(tp_w, tp_d, tp_h+0.1, tp_r);
+        translate([box_w - 8, box_d/2-5, -0.1])
+            cube([2, 10, base_t+0.2]);
+    }
 }
+
+module touchpad_plate() {
+    rounded_cube(tp_w-1, tp_d-1, plate_t, tp_r);
+}
+
+// touchpad_case();
+touchpad_plate();
