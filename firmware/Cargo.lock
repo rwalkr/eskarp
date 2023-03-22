@@ -320,9 +320,9 @@ dependencies = [
 
 [[package]]
 name = "iqs5xx"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "662bde860006525ab2d9e424feea4bf716f0d018fbc1a15efb814aedf4f2db47"
+checksum = "bcb0a1a5228756476865a91c2dfab593e52665545990ccd9a0281544f12c7c14"
 dependencies = [
  "defmt",
  "embedded-hal",

@@ -158,6 +158,7 @@ fn map_v(d: i16) -> f32 {
 
 pub struct Touchpad<I2C, RDY, RST, T: Timer> {
     iqs: iqs5xx::IQS5xx<I2C, RDY, RST>,
+    resolution: (u16, u16),
     movement: Movement<T>,
     scroll_credit: i16,
 }
@@ -170,26 +171,30 @@ where
     T: Timer,
 {
     pub fn new(
-        iqs: iqs5xx::IQS5xx<I2C, RDY, RST>,
+        mut iqs: iqs5xx::IQS5xx<I2C, RDY, RST>,
         timer: T,
         delay: &mut dyn DelayMs<u32>,
     ) -> Result<Self> {
-        let mut tp = Touchpad {
-            iqs,
-            movement: Movement::new(timer),
-            scroll_credit: 0i16,
-        };
-
         info!("IQS reset!");
-        tp.iqs.reset(delay)?;
+        iqs.reset(delay)?;
         info!("IQS reset done!");
 
         info!("IQS init!");
         // TODO: add timeout if RDY isn't connected
-        tp.iqs.poll_ready(delay)?;
+        iqs.poll_ready(delay)?;
         info!("IQS ready");
-        tp.iqs.init()?;
+        iqs.init()?;
         info!("IQS OK");
+
+        let res_x = iqs.read_resolution_x()?;
+        let res_y = iqs.read_resolution_y()?;
+
+        let tp = Touchpad {
+            iqs,
+            resolution: (res_x, res_y),
+            movement: Movement::new(timer),
+            scroll_credit: 0i16,
+        };
 
         Ok(tp)
     }
@@ -205,16 +210,32 @@ where
             Ok(Some(tp_report)) => {
                 let event = iqs5xx::Event::from(&tp_report);
                 info!("Event: {}", event);
+                let rhs_edge = self.resolution.0 - 100;
+                let is_rhs = tp_report.num_fingers == 1 && tp_report.touches[0].abs_x > rhs_edge;
                 match event {
+                    iqs5xx::Event::Move { x: _, y } | iqs5xx::Event::PressHold { x: _, y } if is_rhs => {
+                        self.movement.stop();
+                        // TODO: reset scroll_credit on other move events
+                        self.scroll_credit += -y * 10;
+                        const DIVISOR: i16 = 35;
+                        let scroll = self.scroll_credit / DIVISOR;
+                        self.scroll_credit -= scroll * DIVISOR;
+                        send_report(MouseReport::default().wheel(scroll as i8));
+                    }
                     iqs5xx::Event::Move { x, y } => {
                         let report = self.movement.contact(x, y, 0);
                         if let Some(r) = report {
                             send_report(r);
                         }
                     }
-                    iqs5xx::Event::SingleTap { .. } => {
+                    iqs5xx::Event::SingleTap { x, y } => {
                         self.movement.stop();
-                        send_report(MouseReport::default().buttons(1));
+                        let b = if x > rhs_edge {
+                            if y >= self.resolution.1 / 2 { 2 } else { 1 }
+                        } else {
+                            0
+                        };
+                        send_report(MouseReport::default().buttons(1 << b));
                         send_report(MouseReport::default().buttons(0));
                     }
                     iqs5xx::Event::PressHold { x, y } => {
