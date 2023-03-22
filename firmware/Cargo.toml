@@ -28,7 +28,7 @@ iqs5xx = "0.1.2"
 
 [dependencies.cortex-m-rt]
 features = ["device"]
-version = "^0.7"
+version = "^0.7.3"
 
 [dependencies.either]
 default-features = false
