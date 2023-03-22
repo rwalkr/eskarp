@@ -5,8 +5,7 @@
 use rp2040_panic_usb_boot as _;
 use rtic::app;
 
-mod keyboard;
-mod mouse;
+mod layout;
 mod touchpad;
 
 #[app(device = rp_pico::hal::pac,
@@ -16,35 +15,48 @@ mod app {
     use defmt::*;
     use defmt_rtt as _;
 
-    use crate::keyboard::*;
-    use crate::mouse::{HidMouse, MouseReport};
+    use crate::layout;
     use crate::touchpad;
     use embedded_hal::{
         digital::v2::{InputPin, OutputPin},
         serial::{Read, Write},
     };
+    use frunk::{HCons, HNil};
     use fugit::{ExtU64, RateExtU32};
-    use heapless::spsc::Queue;
-    use keyberon::action::Action::*;
-    use keyberon::action::{d, k, l, m};
     use keyberon::debounce::Debouncer;
-    use keyberon::hid;
-    use keyberon::key_code::KeyCode::*;
     use keyberon::layout::{CustomEvent, Event};
     use keyberon::matrix::Matrix;
     use nb::block;
     use rp2040_monotonic::Rp2040Monotonic;
     use rp_pico::hal;
-    use rp_pico::hal::gpio::dynpin::DynPin;
-    use rp_pico::hal::pio::PIOExt;
     use rp_pico::hal::prelude::*;
+    use rp_pico::hal::{gpio::dynpin::DynPin, pio::PIOExt, usb::UsbBus};
     use smart_leds::{SmartLedsWrite, RGB8};
-    use usb_device::bus::UsbBusAllocator;
-    use usb_device::prelude::*;
+    use usb_device::{
+        bus::UsbBusAllocator,
+        device::{UsbDeviceBuilder, UsbDeviceState, UsbVidPid},
+        UsbError,
+    };
+    use usbd_human_interface_device::{
+        device::{
+            consumer::{ConsumerControlInterface, MultipleConsumerReport},
+            keyboard::NKROBootKeyboardInterface,
+            mouse::{WheelMouseInterface, WheelMouseReport},
+        },
+        hid_class::{UsbHidClass, UsbHidClassBuilder},
+        page::{Consumer, Keyboard},
+        UsbHidError,
+    };
     use ws2812_pio::Ws2812Direct;
 
-    type UsbKeyboardClass = hid::HidClass<'static, hal::usb::UsbBus, KbState>;
-    type UsbMouseClass = hid::HidClass<'static, hal::usb::UsbBus, HidMouse>;
+    type UsbCompositeInterfaceList = HCons<
+        WheelMouseInterface<'static, UsbBus>,
+        HCons<
+            ConsumerControlInterface<'static, UsbBus>,
+            HCons<NKROBootKeyboardInterface<'static, UsbBus>, HNil>,
+        >,
+    >;
+    type UsbCompositeClass<'a> = UsbHidClass<hal::usb::UsbBus, UsbCompositeInterfaceList>;
     type UsbDevice = usb_device::device::UsbDevice<'static, hal::usb::UsbBus>;
     static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 
@@ -80,102 +92,22 @@ mod app {
         AppTimer,
     >;
 
+    const KBDSIZE_COLS: usize = 7;
+    const KBDSIZE_COLS_2: usize = KBDSIZE_COLS * 2;
+    const KBDSIZE_ROWS: usize = 5;
+    const KBDSIZE_LAYERS: usize = 4;
+
     pub enum CustomKey {
-        Media(MediaKey),
+        Media(Consumer),
         Reset(either::Either<(), ()>),
     }
-    type Action = keyberon::action::Action<CustomKey>;
-    type Layout = keyberon::layout::Layout<14, 5, 4, CustomKey>;
-    type Layers = keyberon::layout::Layers<14, 5, 4, CustomKey>;
+    pub type Action = keyberon::action::Action<CustomKey, Keyboard>;
+    pub type Layout =
+        keyberon::layout::Layout<KBDSIZE_COLS_2, KBDSIZE_ROWS, KBDSIZE_LAYERS, CustomKey, Keyboard>;
+    pub type Layers =
+        keyberon::layout::Layers<KBDSIZE_COLS_2, KBDSIZE_ROWS, KBDSIZE_LAYERS, CustomKey, Keyboard>;
 
-    const fn make_keymap() -> Layers {
-        // aliases to keep keymap readable
-        const K_NUBS: Action = k(NonUsBslash);
-        const K_PIPE: Action = m(&[LShift, NonUsBslash].as_slice());
-        const K_BKTK: Action = k(Grave);
-        const K_ENT: Action = k(Enter);
-        const K_SPC: Action = k(Space);
-        const K_BSP: Action = k(BSpace);
-        const K_APP: Action = k(Application);
-        const K_LBRK: Action = k(LBracket);
-        const K_RBRK: Action = k(RBracket);
-        const K_LBRA: Action = m(&[LShift, LBracket].as_slice());
-        const K_RBRA: Action = m(&[LShift, RBracket].as_slice());
-        const K_LPAR: Action = m(&[LShift, Kb9].as_slice());
-        const K_RPAR: Action = m(&[LShift, Kb0].as_slice());
-        const K_LT: Action = m(&[LShift, Comma].as_slice());
-        const K_GT: Action = m(&[LShift, Dot].as_slice());
-        const K_HASH: Action = k(NonUsHash);
-        const K_TILD: Action = m(&[LShift, NonUsHash].as_slice());
-        const K_AMP: Action = m(&[LShift, Quote].as_slice());
-        const K_COLN: Action = m(&[LShift, SColon].as_slice());
-        const K_QUMK: Action = m(&[LShift, Slash].as_slice());
-        const K_PLUS: Action = k(KpPlus);
-        const K_MINUS: Action = k(KpMinus);
-        const K_MUL: Action = k(KpAsterisk);
-        const K_DIV: Action = k(KpSlash);
-        const K_EQ: Action = k(Equal);
-        const K_PGUP: Action = k(PgUp);
-        const K_PGDN: Action = k(PgDown);
-        const K_INS: Action = k(Insert);
-        const K_DEL: Action = k(Delete);
-        const K_ESC: Action = k(Escape);
-        const K_MUTE: Action = Action::Custom(CustomKey::Media(MediaKey::AudioMute));
-        const K_VUP: Action = Action::Custom(CustomKey::Media(MediaKey::AudioVolUp));
-        const K_VDN: Action = Action::Custom(CustomKey::Media(MediaKey::AudioVolDown));
-        const K_PSCR: Action = k(PScreen);
-        const K_SLCK: Action = k(ScrollLock);
-        const K_PAUS: Action = k(Pause);
-        const K_RSTL: Action = Action::Custom(CustomKey::Reset(either::Left(())));
-        const K_RSTR: Action = Action::Custom(CustomKey::Reset(either::Right(())));
-        const L_1: Action = l(1);
-        const L_2: Action = l(2);
-        const CUT: Action = m(&[LCtrl, X].as_slice());
-        const COPY: Action = m(&[LCtrl, C].as_slice());
-        const PASTE: Action = m(&[LCtrl, V].as_slice());
-        const UNDO: Action = m(&[LCtrl, Z].as_slice());
-        const NK: Action = NoOp;
-
-        #[rustfmt::skip]
-        const KEYMAP: Layers = [
-        [
-            [K_ESC,     k(Kb1),  k(Kb2),   k(Kb3),  k(Kb4),  k(Kb5), NK,    /*|*/ NK,    k(Kb6), k(Kb7),  k(Kb8),   k(Kb9),   k(Kb0),    k(Minus), ],
-            [k(Tab),    k(Q),    k(W),     k(E),    k(R),    k(T),   NK,    /*|*/ NK,    k(Y),   k(U),    k(I),     k(O),     k(P),      k(Equal), ],
-            [k(LShift), k(A),    k(S),     k(D),    k(F),    k(G),   NK,    /*|*/ NK,    k(H),   k(J),    k(K),     k(L),     k(SColon), k(Quote), ],
-            [k(LCtrl),  k(Z),    k(X),     k(C),    k(V),    k(B),   K_ENT, /*|*/ K_BSP, k(N),   k(M),    k(Comma), k(Dot),   k(Slash),  K_HASH,   ],
-            [NK,        NK,      k(LGui),  L_2,     k(LAlt), L_1,    K_SPC, /*|*/ L_1,   L_2,    k(LAlt), k(LGui),  k(LCtrl), NK,        NK,       ],
-        ],
-        // Nav / Select
-        [
-            [NoOp,      k(F1),   k(F2),    k(F3),   k(F4),   k(F5),  NK,    /*|*/ NK,    k(F6),  k(F7),   k(F8),    k(F9),    k(F10),    K_APP,    ],
-            [NoOp,      k(F11),  k(F12),   k(F13),  k(F14),  k(F15), NK,    /*|*/ NK,    K_PGUP, k(Home), k(Up),    k(End),   NoOp,      NoOp,     ],
-            [k(LShift), NoOp,    CUT,      COPY,    PASTE,   NoOp,   NK,    /*|*/ NK,    K_PGDN, k(Left), k(Down),  k(Right), NoOp,      K_INS,    ],
-            [k(LCtrl),  NoOp,    NoOp,     NoOp,    UNDO,    NoOp,   NoOp,  /*|*/ K_DEL, NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_DEL,    ],
-            [NK,        NK,      k(LGui),  d(0),    k(LAlt), d(0),   NoOp,  /*|*/ NoOp,  L_2,    k(LAlt), k(LGui),  k(LCtrl), NK,        NK,       ],
-        ],
-        // Symbols / Keypad 
-        [
-            [NoOp,      K_QUMK,  K_COLN,   K_AMP,   K_HASH,  K_NUBS, NK,    /*|*/ NK,    K_TILD, k(Kb7),  k(Kb8),   k(Kb9),   K_LBRK,    K_RBRK,   ],
-            [NoOp,      NoOp,    NoOp,     NoOp,    K_MUL,   K_DIV,  NK,    /*|*/ NK,    K_NUBS, k(Kb4),  k(Kb5),   k(Kb6),   K_LBRA,    K_RBRA,   ],
-            [k(LShift), NoOp,    NoOp,     NoOp,    K_PLUS,  K_MINUS,NK,    /*|*/ NK,    K_BKTK, k(Kb1),  k(Kb2),   k(Kb3),   K_LPAR,    K_RPAR,   ],
-            [k(LCtrl),  NoOp,    NoOp,     NoOp,    NoOp,    K_EQ,   K_ENT, /*|*/ K_BSP, K_PIPE, NoOp,    k(Kb0),   k(Dot),   K_LT,      K_GT,     ],
-            [NK,        NK,      k(LGui),  d(0),    k(LAlt), d(0),   K_SPC, /*|*/ L_1,   d(0),   k(RAlt), l(3),     k(RCtrl), NK,        NK,       ],
-        ],
-        // System
-        [
-            [K_RSTL,    K_PSCR,  K_SLCK,   K_PAUS,  NoOp,    NoOp,   NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      K_RSTR,   ],
-            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VUP,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_VDN,  NK,    /*|*/ NK,    NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            [NoOp,      NoOp,    NoOp,     NoOp,    NoOp,    K_MUTE, NoOp,  /*|*/ NoOp,  NoOp,   NoOp,    NoOp,     NoOp,     NoOp,      NoOp,     ],
-            [NK,        NK,      NoOp,     NoOp,    NoOp,    d(0),   NoOp,  /*|*/ NoOp,  d(0),   NoOp,    d(0),     NoOp,     NK,        NK,       ],
-        ],
-        ];
-        KEYMAP
-    }
-    pub static LAYERS: Layers = make_keymap();
-
-    const KBDSIZE_COLS: usize = 7;
-    const KBDSIZE_ROWS: usize = 5;
+    pub static LAYERS: Layers = layout::make_keymap();
 
     pub struct KeyboardState {
         matrix: Matrix<DynPin, DynPin, KBDSIZE_COLS, KBDSIZE_ROWS>,
@@ -206,7 +138,8 @@ mod app {
         }
     }
 
-    const SCAN_TIME_US: u64 = 1_000;
+    const KBD_SCAN_PERIOD_US: u64 = 1_000;
+    const USB_KBD_TICK_PERIOD_US: u64 = 1_000;
 
     #[monotonic(binds = TIMER_IRQ_0, default = true)]
     type Mono = Rp2040Monotonic;
@@ -214,10 +147,8 @@ mod app {
     #[shared]
     struct Shared {
         layout: Layout,
-        media_queue: Queue<MediaKeyHidReport, 8>,
         usb_dev: UsbDevice,
-        usb_kb_class: UsbKeyboardClass,
-        usb_mouse_class: UsbMouseClass,
+        usb_class: UsbCompositeClass<'static>,
         uart: UartDevice,
         rxbuf: [u8; 4],
         touchpad: Option<Touchpad>,
@@ -234,6 +165,12 @@ mod app {
 
     #[init]
     fn init(c: init::Context) -> (Shared, Local, init::Monotonics) {
+        // Soft-reset does not release the hardware spinlocks
+        // Release them now to avoid a deadlock after debug or watchdog reset
+        unsafe {
+            hal::sio::spinlock_reset();
+        }
+
         let mut resets = c.device.RESETS;
         let mut watchdog = hal::Watchdog::new(c.device.WATCHDOG);
         let clocks = hal::clocks::init_clocks_and_plls(
@@ -268,7 +205,12 @@ mod app {
         // Make a UART on the given pins
         let mut uart = hal::uart::UartPeripheral::new(c.device.UART0, uart_pins, &mut resets)
             .enable(
-                hal::uart::UartConfig::new(38400.Hz(), hal::uart::DataBits::Eight, None, hal::uart::StopBits::One),
+                hal::uart::UartConfig::new(
+                    38400.Hz(),
+                    hal::uart::DataBits::Eight,
+                    None,
+                    hal::uart::StopBits::One,
+                ),
                 clocks.peripheral_clock.freq(),
             )
             .unwrap();
@@ -353,24 +295,28 @@ mod app {
             USB_BUS = Some(usb_bus);
             USB_BUS.as_ref().unwrap()
         };
-        let usb_kb_class = hid::HidClass::new(KbState::default(), usb_bus);
-        let usb_mouse_class = hid::HidClass::new(HidMouse::default(), usb_bus);
+
+        let usb_class = UsbHidClassBuilder::new()
+            .add_interface(NKROBootKeyboardInterface::default_config())
+            .add_interface(ConsumerControlInterface::default_config())
+            .add_interface(WheelMouseInterface::default_config())
+            .build(&usb_bus);
         let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(VID, PID))
             .manufacturer("rwalkr")
             .product("eskarp")
             .serial_number(env!("CARGO_PKG_VERSION"))
+            .supports_remote_wakeup(true)
             .build();
 
         info!("Ready!");
 
-        kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
+        kbd_scan::spawn_after(KBD_SCAN_PERIOD_US.micros()).unwrap();
+        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD_US.micros()).unwrap();
 
         let shared = Shared {
             layout: Layout::new(&LAYERS),
-            media_queue: Queue::new(),
             usb_dev,
-            usb_kb_class,
-            usb_mouse_class,
+            usb_class,
             uart,
             rxbuf: [0; 4],
             touchpad,
@@ -385,13 +331,23 @@ mod app {
         (shared, local, init::Monotonics(timer_mono))
     }
 
-    #[task(binds = USBCTRL_IRQ, priority = 2, shared = [usb_dev, usb_kb_class, usb_mouse_class])]
+    #[task(binds = USBCTRL_IRQ, shared = [usb_dev, usb_class])]
     fn usbctrl(c: usbctrl::Context) {
         let usb_dev = c.shared.usb_dev;
-        let usb_kb_class = c.shared.usb_kb_class;
-        let usb_mouse_class = c.shared.usb_mouse_class;
-        (usb_dev, usb_kb_class, usb_mouse_class).lock(|usb_dev, usb_kb_class, usb_mouse_class| {
-            usb_dev.poll(&mut [usb_kb_class, usb_mouse_class]);
+        let usb_class = c.shared.usb_class;
+        (usb_dev, usb_class).lock(|usb_dev, usb_class| {
+            if usb_dev.poll(&mut [usb_class]) {
+                // need to read any incoming report to clear the interface,
+                // even though we don't do anything with it
+                let interface = usb_class.interface::<NKROBootKeyboardInterface<'_, _>, _>();
+                match interface.read_report() {
+                    Err(UsbError::WouldBlock) => {}
+                    Err(e) => {
+                        core::panic!("Failed to read keyboard report: {:?}", e)
+                    }
+                    Ok(_) => {}
+                }
+            }
         });
     }
 
@@ -421,15 +377,15 @@ mod app {
         let transform = c.local.transform;
         let kbd_state = c.local.kbd_state;
         let delay = c.local.delay;
+        let matrix_state = kbd_state
+            .matrix
+            .get_with_delay(|| {
+                delay.delay_us(10);
+            })
+            .unwrap();
+        let events = kbd_state.debouncer.events(matrix_state);
         let mut uart = c.shared.uart;
         uart.lock(|uart| {
-            let matrix_state = kbd_state
-                .matrix
-                .get_with_delay(|| {
-                    delay.delay_us(10);
-                })
-                .unwrap();
-            let events = kbd_state.debouncer.events(matrix_state);
             for event in events {
                 let event = transform(event);
                 for &b in &ser(event) {
@@ -438,8 +394,8 @@ mod app {
                 handle_event::spawn(event).unwrap();
             }
         });
-        tick_keyberon::spawn().unwrap();
-        kbd_scan::spawn_after(SCAN_TIME_US.micros()).unwrap();
+        tick_keyboard::spawn().unwrap();
+        kbd_scan::spawn_after(KBD_SCAN_PERIOD_US.micros()).unwrap();
     }
 
     #[task(binds = UART0_IRQ, shared = [uart, rxbuf])]
@@ -463,121 +419,139 @@ mod app {
         c.shared.layout.lock(|layout| layout.event(event));
     }
 
-    #[task(shared = [layout, media_queue, usb_dev, usb_kb_class],
+    #[task(shared = [layout],
            local = [is_left, status_led, cur_layer: usize = 0, rset_left: bool = false, rset_count: u32 = 0])]
-    fn tick_keyberon(c: tick_keyberon::Context) {
-        let usb_dev = c.shared.usb_dev;
-        let usb_kb_class = c.shared.usb_kb_class;
-        let layout = c.shared.layout;
-        let media_queue = c.shared.media_queue;
+    fn tick_keyboard(c: tick_keyboard::Context) {
+        let mut layout = c.shared.layout;
         let is_left = *c.local.is_left;
         let status_led = c.local.status_led;
         let cur_layer = c.local.cur_layer;
         let rset_left = c.local.rset_left;
         let rset_count = c.local.rset_count;
-        (usb_dev, usb_kb_class, layout, media_queue).lock(
-            |usb_dev, usb_kb_class, layout, media_queue| {
-                let tick = layout.tick();
-                match tick {
-                    // reset if reset key pressed 5 times
-                    CustomEvent::Release(CustomKey::Reset(k)) => {
-                        if *rset_count == 0 || k.is_left() != *rset_left {
-                            *rset_left = k.is_left();
-                            *rset_count = 1;
-                        } else if k.is_left() == *rset_left {
-                            *rset_count += 1;
-                        } else {
-                            *rset_count = 0;
-                        }
-                        if *rset_count >= 5 {
-                            *rset_count = 0;
-                            update_status_led(status_led, StatusVal::Bootloader, 0);
-                            if *rset_left == is_left {
-                                do_reset();
-                            }
-                        } else {
-                            update_status_led(
-                                status_led,
-                                StatusVal::Layer(*cur_layer),
-                                *rset_count,
-                            );
-                        }
-                    }
-                    CustomEvent::Press(CustomKey::Media(k)) => {
-                        media_queue.enqueue(MediaKeyHidReport::from(k)).ok();
-                    }
-                    CustomEvent::Release(CustomKey::Media(_)) => {
-                        media_queue.enqueue(MediaKeyHidReport::default()).ok();
-                    }
-                    _ => {}
-                }
-
-                if layout.current_layer() != *cur_layer {
-                    *cur_layer = layout.current_layer();
-                    if *cur_layer != 3 {
+        layout.lock(|layout| {
+            match layout.tick() {
+                // reset if reset key pressed 5 times
+                CustomEvent::Release(CustomKey::Reset(k)) => {
+                    if *rset_count == 0 || k.is_left() != *rset_left {
+                        *rset_left = k.is_left();
+                        *rset_count = 1;
+                    } else if k.is_left() == *rset_left {
+                        *rset_count += 1;
+                    } else {
                         *rset_count = 0;
                     }
-                    update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
-                }
-
-                if usb_dev.state() != usb_device::device::UsbDeviceState::Configured {
-                    return;
-                }
-
-                while let Some(mk_report) = media_queue.dequeue() {
-                    if usb_kb_class.device_mut().set_mk_report(mk_report.clone()) {
-                        send_kb_report::spawn(KbReport::MediaKey(mk_report)).ok();
+                    if *rset_count >= 5 {
+                        *rset_count = 0;
+                        update_status_led(status_led, StatusVal::Bootloader, 0);
+                        if *rset_left == is_left {
+                            do_reset();
+                        }
+                    } else {
+                        update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
                     }
                 }
-                let report: KbHidReport = layout.keycodes().collect();
-                if usb_kb_class.device_mut().set_kb_report(report.clone()) {
-                    send_kb_report::spawn(KbReport::Keyboard(report)).ok();
+                CustomEvent::Press(CustomKey::Media(k)) => {
+                    let r = MultipleConsumerReport {
+                        codes: [
+                            *k,
+                            Consumer::Unassigned,
+                            Consumer::Unassigned,
+                            Consumer::Unassigned,
+                        ],
+                    };
+                    send_consumer_report::spawn(r).unwrap();
                 }
-            },
-        );
+                CustomEvent::Release(CustomKey::Media(_)) => {
+                    send_consumer_report::spawn(MultipleConsumerReport::default()).unwrap();
+                }
+                _ => {}
+            };
+
+            if layout.current_layer() != *cur_layer {
+                *cur_layer = layout.current_layer();
+                if *cur_layer != 3 {
+                    *rset_count = 0;
+                }
+                update_status_led(status_led, StatusVal::Layer(*cur_layer), *rset_count);
+            }
+
+            let keycodes: heapless::Vec<Keyboard, 70> = layout.keycodes().collect();
+            send_keyboard_report::spawn(keycodes).unwrap();
+        });
     }
 
-    #[task(shared = [usb_kb_class], capacity = 8)]
-    fn send_kb_report(c: send_kb_report::Context, report: KbReport) {
-        let mut usb_kb_class = c.shared.usb_kb_class;
-        usb_kb_class.lock(|usb_kb_class| {
-            let res = match report.clone() {
-                KbReport::Keyboard(mut r) => usb_kb_class.write(r.as_bytes()),
-                KbReport::MediaKey(mut r) => usb_kb_class.write(r.as_bytes()),
-            };
-            match res {
-                Ok(0) => {
-                    // no bytes written - rescedule to retry after next interrupt
-                    info!("send_kb_report: retry");
-                    send_kb_report::spawn(report).ok();
+    #[task(shared = [usb_class])]
+    fn usb_keyboard_tick(c: usb_keyboard_tick::Context) {
+        let mut usb_class = c.shared.usb_class;
+        usb_class.lock(|usb_class| {
+            match usb_class
+                .interface::<NKROBootKeyboardInterface<'_, _>, _>()
+                .tick()
+            {
+                Err(UsbHidError::WouldBlock) | Err(UsbHidError::Duplicate) | Ok(_) => {}
+                Err(e) => {
+                    core::panic!("Failed to process keyboard tick: {:?}", e);
                 }
-                Ok(n) => {
-                    info!("send_kb_report: {}", n);
+            }
+        });
+        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD_US.micros()).unwrap();
+    }
+
+    #[task(shared = [usb_dev, usb_class], capacity = 8)]
+    fn send_keyboard_report(c: send_keyboard_report::Context, report: heapless::Vec<Keyboard, 70>) {
+        let usb_dev = c.shared.usb_dev;
+        let usb_class = c.shared.usb_class;
+        (usb_dev, usb_class).lock(|usb_dev, usb_class| {
+            if usb_dev.state() != usb_device::device::UsbDeviceState::Configured {
+                return;
+            }
+            let is_any_key_pressed = !report.is_empty();
+            match usb_class
+                .interface::<NKROBootKeyboardInterface<'_, _>, _>()
+                .write_report(report)
+            {
+                Err(UsbHidError::WouldBlock) | Err(UsbHidError::Duplicate) | Ok(_) => {}
+                Err(e) => {
+                    core::panic!("Failed to write keyboard report: {:?}", e);
                 }
-                Err(_) => {
-                    info!("send_kb_report: ERR");
+            }
+
+            if is_any_key_pressed
+                && usb_dev.state() == UsbDeviceState::Suspend
+                && usb_dev.remote_wakeup_enabled()
+            {
+                usb_dev.bus().remote_wakeup();
+            }
+        });
+    }
+
+    #[task(shared = [usb_class], capacity = 8)]
+    fn send_consumer_report(c: send_consumer_report::Context, report: MultipleConsumerReport) {
+        let mut usb_class = c.shared.usb_class;
+        usb_class.lock(|usb_class| {
+            match usb_class
+                .interface::<ConsumerControlInterface<'_, _>, _>()
+                .write_report(&report)
+            {
+                Err(UsbError::WouldBlock) | Ok(_) => {}
+                Err(e) => {
+                    core::panic!("Failed to write consumer report: {:?}", e);
                 }
             }
         });
     }
 
-    #[task(shared = [usb_mouse_class], capacity = 8)]
-    fn send_mouse_report(c: send_mouse_report::Context, report: MouseReport) {
-        let mut usb_mouse_class = c.shared.usb_mouse_class;
-        usb_mouse_class.lock(|usb_mouse_class| {
-            info!("HIDReport::Mouse");
-            let res = usb_mouse_class.write(report.clone().as_bytes());
-            match res {
-                Ok(0) => {
-                    // no bytes written - rescedule to retry after next interrupt
-                    info!("send_mouse_report: retry");
-                    send_mouse_report::spawn(report).ok();
-                }
-                Ok(n) => {
-                    info!("send_mouse_report: {}", n);
-                }
-                Err(_) => {
-                    info!("send_mouse_report: ERR");
+    #[task(shared = [usb_class], capacity = 8)]
+    fn send_mouse_report(c: send_mouse_report::Context, report: WheelMouseReport) {
+        let mut usb_class = c.shared.usb_class;
+        usb_class.lock(|usb_class| {
+            match usb_class
+                .interface::<WheelMouseInterface<'_, _>, _>()
+                .write_report(&report)
+            {
+                Err(UsbHidError::WouldBlock) | Err(UsbHidError::Duplicate) | Ok(_) => {}
+                Err(e) => {
+                    core::panic!("Failed to write mouse report: {:?}", e);
                 }
             }
         });

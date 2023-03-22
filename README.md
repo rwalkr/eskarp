@@ -94,8 +94,3 @@ other half of the keyboard).
 * 4 wire cable
 * (Optional) 1x WS2812b compatible LED
 * (Optional) TPS65-201A-S available from Digikey or Mouser
-
-## Acknowledgments
-
-Support for media keys is derived from [Peautkb](https://github.com/peauters/peautkb)
-under MIT License (Copyright (c) 2021 peauters - see LICENSE for full text)

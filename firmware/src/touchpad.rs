@@ -5,10 +5,9 @@ use defmt::*;
 use micromath::F32Ext;
 
 use embedded_hal::blocking::delay::DelayMs;
+use usbd_human_interface_device::device::mouse::WheelMouseReport;
 
 pub type Result<T> = core::result::Result<T, iqs5xx::Error>;
-
-use crate::mouse::MouseReport;
 
 #[derive(Format)]
 pub enum MovementState {
@@ -54,7 +53,7 @@ impl<T: Timer> Movement<T> {
         }
     }
 
-    pub fn contact(&mut self, dx: i16, dy: i16, buttons: u8) -> Option<MouseReport> {
+    fn contact(&mut self, dx: i16, dy: i16, buttons: u8) -> Option<MouseReport> {
         let mx = map_v(dx);
         let my = map_v(dy);
         let report = MouseReport::default()
@@ -65,12 +64,12 @@ impl<T: Timer> Movement<T> {
         Some(report)
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         self.move_state = MovementState::Idle;
         self.timer.cancel();
     }
 
-    pub fn tick(&mut self) -> Option<MouseReport> {
+    fn tick(&mut self) -> Option<MouseReport> {
         info!("tick: {}", self.move_state);
         let (report, new_state) = match self.move_state {
             MovementState::Idle => (None, MovementState::Idle),
@@ -163,6 +162,38 @@ pub struct Touchpad<I2C, RDY, RST, T: Timer> {
     scroll_credit: i16,
 }
 
+#[derive(Clone, Debug, Default)]
+struct MouseReport(WheelMouseReport);
+
+impl MouseReport {
+    pub fn buttons(mut self, buttons: u8) -> Self {
+        self.0.buttons = buttons;
+        self
+    }
+
+    pub fn pos(mut self, x: i8, y: i8) -> Self {
+        self.0.x = x;
+        self.0.y = y;
+        self
+    }
+
+    pub fn wheel(mut self, v: i8) -> Self {
+        self.0.vertical_wheel = v;
+        self
+    }
+
+    pub fn pan(mut self, v: i8) -> Self {
+        self.0.horizontal_wheel = v;
+        self
+    }
+}
+
+impl From<MouseReport> for WheelMouseReport {
+    fn from(r: MouseReport) -> Self {
+        r.0
+    }
+}
+
 impl<I2C, RDY, RST, T> Touchpad<I2C, RDY, RST, T>
 where
     I2C: embedded_hal::blocking::i2c::Write + embedded_hal::blocking::i2c::WriteRead,
@@ -203,7 +234,7 @@ where
         self.iqs.clear_irq(clear_irq);
     }
 
-    pub fn process<F: FnMut(MouseReport) -> ()>(&mut self, mut send_report: F) {
+    pub fn process<F: FnMut(WheelMouseReport) -> ()>(&mut self, mut send_report: F) {
         // read the report if available
         let res = self.iqs.try_transact(|iqs| iqs.get_report());
         match res {
@@ -220,12 +251,12 @@ where
                         const DIVISOR: i16 = 35;
                         let scroll = self.scroll_credit / DIVISOR;
                         self.scroll_credit -= scroll * DIVISOR;
-                        send_report(MouseReport::default().wheel(scroll as i8));
+                        send_report(MouseReport::default().wheel(scroll as i8).into());
                     }
                     iqs5xx::Event::Move { x, y } => {
                         let report = self.movement.contact(x, y, 0);
                         if let Some(r) = report {
-                            send_report(r);
+                            send_report(r.into());
                         }
                     }
                     iqs5xx::Event::SingleTap { x, y } => {
@@ -235,23 +266,23 @@ where
                         } else {
                             0
                         };
-                        send_report(MouseReport::default().buttons(1 << b));
-                        send_report(MouseReport::default().buttons(0));
+                        send_report(MouseReport::default().buttons(1 << b).into());
+                        send_report(MouseReport::default().buttons(0).into());
                     }
                     iqs5xx::Event::PressHold { x, y } => {
                         let report = self.movement.contact(x, y, 1);
                         if let Some(r) = report {
-                            send_report(r);
+                            send_report(r.into());
                         }
                     }
                     iqs5xx::Event::TwoFingerTap => {
                         self.movement.stop();
-                        send_report(MouseReport::default().buttons(2));
-                        send_report(MouseReport::default().buttons(0));
+                        send_report(MouseReport::default().buttons(2).into());
+                        send_report(MouseReport::default().buttons(0).into());
                     }
                     iqs5xx::Event::Scroll { x, y: _ } if x != 0 => {
                         self.movement.stop();
-                        send_report(MouseReport::default().pan(x as i8));
+                        send_report(MouseReport::default().pan(x as i8).into());
                     }
                     iqs5xx::Event::Scroll { x: _, y } if y != 0 => {
                         self.movement.stop();
@@ -260,7 +291,7 @@ where
                         const DIVISOR: i16 = 35;
                         let scroll = self.scroll_credit / DIVISOR;
                         self.scroll_credit -= scroll * DIVISOR;
-                        send_report(MouseReport::default().wheel(scroll as i8));
+                        send_report(MouseReport::default().wheel(scroll as i8).into());
                     }
                     _ => {}
                 };
@@ -272,10 +303,10 @@ where
         }
     }
 
-    pub fn tick<F: FnMut(MouseReport) -> ()>(&mut self, mut send_report: F) {
+    pub fn tick<F: FnMut(WheelMouseReport) -> ()>(&mut self, mut send_report: F) {
         let report = self.movement.tick();
         if let Some(r) = report {
-            send_report(r);
+            send_report(r.into());
         }
     }
 }
