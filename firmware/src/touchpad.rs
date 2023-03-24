@@ -244,7 +244,9 @@ where
                 let rhs_edge = self.resolution.0 - 100;
                 let is_rhs = tp_report.num_fingers == 1 && tp_report.touches[0].abs_x > rhs_edge;
                 match event {
-                    iqs5xx::Event::Move { x: _, y } | iqs5xx::Event::PressHold { x: _, y } if is_rhs => {
+                    iqs5xx::Event::Move { x: _, y } | iqs5xx::Event::PressHold { x: _, y }
+                        if is_rhs =>
+                    {
                         self.movement.stop();
                         // TODO: reset scroll_credit on other move events
                         self.scroll_credit += -y * 10;
@@ -262,7 +264,11 @@ where
                     iqs5xx::Event::SingleTap { x, y } => {
                         self.movement.stop();
                         let b = if x > rhs_edge {
-                            if y >= self.resolution.1 / 2 { 2 } else { 1 }
+                            if y >= self.resolution.1 / 2 {
+                                2
+                            } else {
+                                1
+                            }
                         } else {
                             0
                         };
