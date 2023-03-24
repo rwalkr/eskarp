@@ -138,11 +138,12 @@ mod app {
         }
     }
 
-    const KBD_SCAN_PERIOD_US: u64 = 1_000;
-    const USB_KBD_TICK_PERIOD_US: u64 = 1_000;
-
     #[monotonic(binds = TIMER_IRQ_0, default = true)]
     type Mono = Rp2040Monotonic;
+    type Duration = <Rp2040Monotonic as rtic::Monotonic>::Duration;
+
+    const KBD_SCAN_PERIOD: Duration = Duration::millis(1);
+    const USB_KBD_TICK_PERIOD: Duration = Duration::millis(1);
 
     #[shared]
     struct Shared {
@@ -310,8 +311,8 @@ mod app {
 
         info!("Ready!");
 
-        kbd_scan::spawn_after(KBD_SCAN_PERIOD_US.micros()).unwrap();
-        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD_US.micros()).unwrap();
+        kbd_scan::spawn_after(KBD_SCAN_PERIOD).unwrap();
+        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD).unwrap();
 
         let shared = Shared {
             layout: Layout::new(&LAYERS),
@@ -365,7 +366,7 @@ mod app {
                 });
 
                 touchpad.process(|rep, delay| {
-                    send_mouse_report::spawn_after((delay as u64).millis(), rep).ok();
+                    send_mouse_report::spawn_after(Duration::millis(delay as u64), rep).ok();
                 });
             }
         });
@@ -394,7 +395,7 @@ mod app {
             }
         });
         tick_keyboard::spawn().unwrap();
-        kbd_scan::spawn_after(KBD_SCAN_PERIOD_US.micros()).unwrap();
+        kbd_scan::spawn_after(KBD_SCAN_PERIOD).unwrap();
     }
 
     #[task(binds = UART0_IRQ, shared = [uart, rxbuf])]
@@ -493,7 +494,7 @@ mod app {
                 }
             }
         });
-        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD_US.micros()).unwrap();
+        usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD).unwrap();
     }
 
     #[task(shared = [usb_dev, usb_class], capacity = 8)]
