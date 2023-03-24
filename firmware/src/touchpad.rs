@@ -201,6 +201,8 @@ where
     RST: embedded_hal::digital::v2::OutputPin,
     T: Timer,
 {
+    const CLICK_TIME_MS: u32 = 10;
+
     pub fn new(
         mut iqs: iqs5xx::IQS5xx<I2C, RDY, RST>,
         timer: T,
@@ -234,7 +236,7 @@ where
         self.iqs.clear_irq(clear_irq);
     }
 
-    pub fn process<F: FnMut(WheelMouseReport) -> ()>(&mut self, mut send_report: F) {
+    pub fn process<F: FnMut(WheelMouseReport, u32) -> ()>(&mut self, mut send_report: F) {
         // read the report if available
         let res = self.iqs.try_transact(|iqs| iqs.get_report());
         match res {
@@ -253,12 +255,12 @@ where
                         const DIVISOR: i16 = 35;
                         let scroll = self.scroll_credit / DIVISOR;
                         self.scroll_credit -= scroll * DIVISOR;
-                        send_report(MouseReport::default().wheel(scroll as i8).into());
+                        send_report(MouseReport::default().wheel(scroll as i8).into(), 0);
                     }
                     iqs5xx::Event::Move { x, y } => {
                         let report = self.movement.contact(x, y, 0);
                         if let Some(r) = report {
-                            send_report(r.into());
+                            send_report(r.into(), 0);
                         }
                     }
                     iqs5xx::Event::SingleTap { x, y } => {
@@ -272,23 +274,29 @@ where
                         } else {
                             0
                         };
-                        send_report(MouseReport::default().buttons(1 << b).into());
-                        send_report(MouseReport::default().buttons(0).into());
+                        send_report(MouseReport::default().buttons(1 << b).into(), 0);
+                        send_report(
+                            MouseReport::default().buttons(0).into(),
+                            Self::CLICK_TIME_MS,
+                        );
                     }
                     iqs5xx::Event::PressHold { x, y } => {
                         let report = self.movement.contact(x, y, 1);
                         if let Some(r) = report {
-                            send_report(r.into());
+                            send_report(r.into(), 0);
                         }
                     }
                     iqs5xx::Event::TwoFingerTap => {
                         self.movement.stop();
-                        send_report(MouseReport::default().buttons(2).into());
-                        send_report(MouseReport::default().buttons(0).into());
+                        send_report(MouseReport::default().buttons(2).into(), 0);
+                        send_report(
+                            MouseReport::default().buttons(0).into(),
+                            Self::CLICK_TIME_MS,
+                        );
                     }
                     iqs5xx::Event::Scroll { x, y: _ } if x != 0 => {
                         self.movement.stop();
-                        send_report(MouseReport::default().pan(x as i8).into());
+                        send_report(MouseReport::default().pan(x as i8).into(), 0);
                     }
                     iqs5xx::Event::Scroll { x: _, y } if y != 0 => {
                         self.movement.stop();
@@ -297,7 +305,7 @@ where
                         const DIVISOR: i16 = 35;
                         let scroll = self.scroll_credit / DIVISOR;
                         self.scroll_credit -= scroll * DIVISOR;
-                        send_report(MouseReport::default().wheel(scroll as i8).into());
+                        send_report(MouseReport::default().wheel(scroll as i8).into(), 0);
                     }
                     _ => {}
                 };

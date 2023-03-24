@@ -364,9 +364,8 @@ mod app {
                     }
                 });
 
-                info!("IRQ!!");
-                touchpad.process(|rep| {
-                    send_mouse_report::spawn(rep).ok();
+                touchpad.process(|rep, delay| {
+                    send_mouse_report::spawn_after((delay as u64).millis(), rep).ok();
                 });
             }
         });
