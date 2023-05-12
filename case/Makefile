@@ -1,6 +1,19 @@
-all: stl/body.stl stl/body_led.stl stl/body_tp.stl stl/lid.stl svg/preview.svg svg/case_top.svg svg/plate.svg
+all: stls svgs
+.PHONY: all
 
-output/cases/body.stl output/cases/body_led.stl output/cases/body_tp.stl output/cases/lid.stl: eskarp.yaml
+STLS=stl/body.stl stl/body_led.stl stl/body_tp.stl stl/lid.stl
+stls: $(STLS)
+.PHONY: stls
+
+SVGS=svg/preview.svg svg/case_top.svg svg/plate.svg
+svgs: $(SVGS)
+.PHONY: svgs
+
+OUTS=$(patsubst stl/%,output/cases/%,$(STLS)) $(patsubst svg/%,output/outlines/%,$(SVGS))
+
+$(info $(OUTS))
+
+$(OUTS): eskarp.yaml
 	ergogen $< -o output -d
 
 stl/%.stl: output/cases/%.stl
