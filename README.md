@@ -67,10 +67,10 @@ Azoteq.  This will appear as a USB HID mouse to the host computer.
 The touchpad sits in a 3D printed holder and is wired to the RP Pico pins
 as:
 
-* 10: RDY
-* 11: RST
-* 12: SDA
-* 13: SCL
+* 14: RDY (GP10)
+* 15: RST (GP11)
+* 16: SDA (GP12)
+* 17: SCL (GP13)
 * 36: VDD (3.3V)
 * 38: GND
 
