@@ -1,3 +1,4 @@
 /case/output/
 /firmware/target/
 /firmware/layout/target/
+/.vscode/*.log
