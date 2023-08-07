@@ -2,3 +2,4 @@
 /firmware/target/
 /firmware/layout/target/
 /.vscode/*.log
+/case/tools/
