@@ -7,6 +7,9 @@ use rtic::app;
 
 mod touchpad;
 
+#[link_section = ".config"]
+static LAYOUT: &str = include_str!("layout.txt");
+
 #[app(device = rp_pico::hal::pac,
       peripherals = true,
       dispatchers = [DMA_IRQ_0])]
@@ -90,8 +93,6 @@ mod app {
         IQS5xxRstPin,
         AppTimer,
     >;
-
-    const LAYOUT: &str = include_str!("layout.txt");
 
     pub struct KeyboardState {
         matrix: Matrix<DynPin, DynPin, KBDSIZE_COLS, KBDSIZE_ROWS>,
@@ -298,7 +299,7 @@ mod app {
         kbd_scan::spawn_after(KBD_SCAN_PERIOD).unwrap();
         usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD).unwrap();
 
-        *c.local.layers = Some(layout::make_keymap(LAYOUT).unwrap());
+        *c.local.layers = Some(layout::make_keymap(crate::LAYOUT).unwrap());
         let layout = Layout::new(c.local.layers.as_ref().unwrap());
         let shared = Shared {
             layout: layout,
