@@ -88,6 +88,8 @@ fn parse_a(a: &'static str) -> Result<Action, LayoutErr> {
         "PSCR" => Ok(k(PrintScreen)),
         "SLCK" => Ok(k(ScrollLock)),
         "PAUS" => Ok(k(Pause)),
+        "CLCK" => Ok(k(CapsLock)),
+        "NLCK" => Ok(k(KeypadNumLockAndClear)),
         "LSHFT" => Ok(k(LeftShift)),
         "LCTRL" => Ok(k(LeftControl)),
         "RCTRL" => Ok(k(RightControl)),

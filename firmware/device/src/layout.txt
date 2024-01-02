@@ -17,7 +17,7 @@ _      _      @COLN  @AMP   @LBRK  @RBRK  .      | .      @TILD  @KP7   @KP8   @
 .      .      @LGUI  D0     @LALT  D0     @SPC   | L1     D0     @RALT  L3     @RCTRL .      .
 
 @RSTL  @PSCR  @SLCK  @PAUS  _      _      .      | .      _      _      _      _      _      @RSTR
-_      _      _      _      _      @VUP   .      | .      _      _      _      _      _      _
+_      @CLCK  @NLCK  _      _      @VUP   .      | .      _      _      _      _      _      _
 _      _      _      _      _      @VDN   .      | .      _      _      _      _      _      _
 _      _      _      _      _      @MUTE  _      | _      _      _      _      _      _      _
 .      .      _      _      _      D0     _      | _      D0     _      D0     _      .      .
