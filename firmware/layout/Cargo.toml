@@ -1,0 +1,14 @@
+[package]
+name = "layout"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+usbd-human-interface-device = "0.3"
+
+[dependencies.either]
+default-features = false
+version = "1.6.1"
+
+[dependencies.keyberon]
+git = "https://github.com/TeXitoi/keyberon"

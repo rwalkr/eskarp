@@ -1,0 +1,9 @@
+{
+    "makefile.extensionOutputFolder": "./.vscode",
+    "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.linkedProjects": [
+        "./firmware/layout/Cargo.toml",
+        "./firmware/layout/Cargo.toml"
+    ]
+}

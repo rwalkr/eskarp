@@ -1,0 +1,23 @@
+@ESC   :1     :2     :3     :4     :5     .      | .      :6     :7     :8     :9     :0     @DASH
+@LALT  :Q     :W     :E     :R     :T     .      | .      :Y     :U     :I     :O     :P     @EQ
+@LSHFT :A     :S     :D     :F     :G     .      | .      :H     :J     :K     :L     @SEMI  @QUOT
+@LCTRL :Z     :X     :C     :V     :B     @ENT   | @BSP   :N     :M     @COMMA @DOT   @SLSH  @HASH
+.      .      @LGUI  L2     @LALT  L1     @SPC   | @TAB   L2     @LALT  @LGUI  @LCTRL .      .
+
+_      F1     F2     F3     F4     F5     .      | .      F6     F7     F8     F9     F10    @APP
+@LALT  F11    F12    F13    F14    F15    .      | .      @PGUP  @HOME  @UP    @END   _      _
+@LSHFT _      @CUT   @COPY  @PASTE _      .      | .      @PGDN  @LEFT  @DOWN  @RIGHT _      @INS
+@LCTRL _      _      _      @UNDO  _      _      | @DEL   _      _      _      _      _      @DEL
+.      .      @LGUI  D0     @LALT  D0     _      | _      L2     @LALT  @LGUI  @LCTRL .      .
+
+_      _      @COLN  @AMP   @LBRK  @RBRK  .      | .      @TILD  @KP7   @KP8   @KP9   _      _
+@LALT  _      @NUBS  @SLSH  @LBRA  @RBRA  .      | .      @NUBS  @KP4   @KP5   @KP6   @MINUS @DIV
+@LSHFT _      @HASH  @QUMK  @LPAR  @RPAR  .      | .      @BKTK  @KP1   @KP2   @KP3   @PLUS  @MUL
+@LCTRL _      _      _      @LT    @GT    @ENT   | @BSP   @PIPE  _      @KP0   @DOT   @EQ    _
+.      .      @LGUI  D0     @LALT  D0     @SPC   | L1     D0     @RALT  L3     @RCTRL .      .
+
+@RSTL  @PSCR  @SLCK  @PAUS  _      _      .      | .      _      _      _      _      _      @RSTR
+_      @CLCK  @NLCK  _      _      @VUP   .      | .      _      _      _      _      _      _
+_      _      _      _      _      @VDN   .      | .      _      _      _      _      _      _
+_      _      _      _      _      @MUTE  _      | _      _      _      _      _      _      _
+.      .      _      _      _      D0     _      | _      D0     _      D0     _      .      .

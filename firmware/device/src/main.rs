@@ -5,8 +5,10 @@
 use rp2040_panic_usb_boot as _;
 use rtic::app;
 
-mod layout;
 mod touchpad;
+
+#[link_section = ".config"]
+static LAYOUT: &str = include_str!("layout.txt");
 
 #[app(device = rp_pico::hal::pac,
       peripherals = true,
@@ -15,8 +17,8 @@ mod app {
     use defmt::*;
     use defmt_rtt as _;
 
-    use crate::layout;
     use crate::touchpad;
+    use ::layout::*;
     use embedded_hal::{
         digital::v2::{InputPin, OutputPin},
         serial::{Read, Write},
@@ -92,23 +94,6 @@ mod app {
         AppTimer,
     >;
 
-    const KBDSIZE_COLS: usize = 7;
-    const KBDSIZE_COLS_2: usize = KBDSIZE_COLS * 2;
-    const KBDSIZE_ROWS: usize = 5;
-    const KBDSIZE_LAYERS: usize = 4;
-
-    pub enum CustomKey {
-        Media(Consumer),
-        Reset(either::Either<(), ()>),
-    }
-    pub type Action = keyberon::action::Action<CustomKey, Keyboard>;
-    pub type Layout =
-        keyberon::layout::Layout<KBDSIZE_COLS_2, KBDSIZE_ROWS, KBDSIZE_LAYERS, CustomKey, Keyboard>;
-    pub type Layers =
-        keyberon::layout::Layers<KBDSIZE_COLS_2, KBDSIZE_ROWS, KBDSIZE_LAYERS, CustomKey, Keyboard>;
-
-    pub static LAYERS: Layers = layout::make_keymap();
-
     pub struct KeyboardState {
         matrix: Matrix<DynPin, DynPin, KBDSIZE_COLS, KBDSIZE_ROWS>,
         debouncer: Debouncer<[[bool; KBDSIZE_COLS]; KBDSIZE_ROWS]>,
@@ -164,7 +149,7 @@ mod app {
         delay: cortex_m::delay::Delay,
     }
 
-    #[init]
+    #[init(local = [ layers: Option<Layers> = None])]
     fn init(c: init::Context) -> (Shared, Local, init::Monotonics) {
         // Soft-reset does not release the hardware spinlocks
         // Release them now to avoid a deadlock after debug or watchdog reset
@@ -314,8 +299,10 @@ mod app {
         kbd_scan::spawn_after(KBD_SCAN_PERIOD).unwrap();
         usb_keyboard_tick::spawn_after(USB_KBD_TICK_PERIOD).unwrap();
 
+        *c.local.layers = Some(layout::make_keymap(crate::LAYOUT).unwrap());
+        let layout = Layout::new(c.local.layers.as_ref().unwrap());
         let shared = Shared {
-            layout: Layout::new(&LAYERS),
+            layout: layout,
             usb_dev,
             usb_class,
             uart,
