@@ -26,6 +26,17 @@ mounting the RP2 mass storage device and copying the firmware build onto it.  To
 reset into bootloader mode, press the reset key combo (On layer 3, the outermost
 top key) five times.
 
+Build the firmware in the `firmware/device` directory:
+
+```
+cd firmware/device
+cargo build --release
+# Convert to .uf2 format
+elf2uf2-rs ../target/thumbv6m-none-eabi/release/eskarp
+```
+
+Copy `firmware/target/thumbv6m-none-eabi/release/eskarp.uf2` to each half of the keyboard
+
 ## Case
 
 ![Case model](media/case_model.png)
